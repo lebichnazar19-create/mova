@@ -128,6 +128,41 @@ def test_svg_містить_правильні_розміри_полотна():
     assert 'viewBox="0 0 300 150"' in svg
 
 
+# ---- шлях збереження і .html-обгортка (реальний пристрій: proot + Android) ----
+
+def test_шлях_за_замовчуванням_має_розширення_html():
+    # .svg на реальному Android іноді відкривається не браузером, а
+    # стороннім застосунком (Google Документи) — тому саме .html
+    assert малюнок.ШЛЯХ_ФАЙЛУ.suffix == ".html"
+
+
+def test_базова_директорія_віддає_перевагу_справжньому_termux_дому(monkeypatch, tmp_path):
+    справжній_дім = tmp_path / "справжній_termux_дім"
+    справжній_дім.mkdir()
+    monkeypatch.setattr(малюнок, "_TERMUX_ДІМ", справжній_дім)
+    assert малюнок._базова_директорія() == справжній_дім
+
+
+def test_базова_директорія_лишає_як_було_якщо_termux_дому_немає(monkeypatch, tmp_path):
+    неіснуючий = tmp_path / "немає_такого"
+    monkeypatch.setattr(малюнок, "_TERMUX_ДІМ", неіснуючий)
+    assert малюнок._базова_директорія() == Path.home()
+
+
+def test_покажи_пише_html_а_не_голий_svg(tmp_path, monkeypatch):
+    шлях = tmp_path / "м.html"
+    monkeypatch.setattr(малюнок, "ШЛЯХ_ФАЙЛУ", шлях)
+    monkeypatch.setattr(пристрій, "відкрий", lambda ш: None)
+
+    малюнок.полотно(50, 50)
+    малюнок.квадрат(0, 0, 10, "синій")
+    малюнок.покажи()
+
+    вміст = шлях.read_text(encoding="utf-8")
+    assert вміст.lower().startswith("<!doctype html>")
+    assert "<svg" in вміст and "#1E88E5" in вміст
+
+
 # ---- покажи(): зберігає файл і кличе пристрій.відкрий ------------------------
 
 def test_покажи_зберігає_файл_і_відкриває(tmp_path, monkeypatch):
