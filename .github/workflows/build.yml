@@ -1,0 +1,44 @@
+name: Збірка APK
+
+# На кожен push у main — зібрати Android APK через Buildozer і покласти
+# готовий файл в Artifacts запуску. workflow_dispatch — щоб можна було
+# перезапустити збірку вручну без нового коміту.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-apk:
+    name: Buildozer -> APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Глобальний кеш Buildozer (Android SDK/NDK, platform-tools) —
+      # ці завантаження важать сотні МБ і однакові від збірки до збірки,
+      # доки не зміниться buildozer.spec; кеш разюче скорочує час
+      # повторних запусків.
+      - name: Кеш Buildozer (SDK/NDK)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Зібрати APK (Buildozer)
+        uses: ArtemSBulgakov/buildozer-action@v1
+        id: buildozer
+        with:
+          buildozer_version: stable
+
+      - name: Завантажити APK в Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: мова-apk
+          path: ${{ steps.buildozer.outputs.filename }}
+          if-no-files-found: error
