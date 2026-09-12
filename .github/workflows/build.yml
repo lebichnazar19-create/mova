@@ -49,6 +49,30 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
+      - name: Прийняти ліцензії Android SDK
+        run: |
+          set -e
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+
+          # На холодному кеші SDK ще не існує — sdkmanager з'явиться лише
+          # після того, як buildozer сам його завантажить. Тому перший
+          # прогін нижче свідомо не перевіряється на успіх (|| true): він
+          # впаде саме на неприйнятих ліцензіях, але встигне докачати SDK
+          # і сам sdkmanager, чого нам і треба. На теплому кеші (SDK вже є
+          # з попереднього запуску, ліцензії теж уже прийняті) цей крок
+          # просто нічого не робить.
+          if [ ! -d "$SDK_DIR" ]; then
+            buildozer -v android debug || true
+          fi
+
+          SDKMANAGER=$(find "$SDK_DIR" -type f -name sdkmanager 2>/dev/null | head -n1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager не знайдено в $SDK_DIR навіть після першого прогону buildozer" >&2
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
+
       - name: Зібрати APK (buildozer android debug)
         run: buildozer -v android debug
 

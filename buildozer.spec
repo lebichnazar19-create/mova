@@ -45,6 +45,14 @@ fullscreen = 0
 # перед публікацією для реальних пристроїв.
 android.archs = arm64-v8a
 
+# Зафіксовано явно, а не автовибір найновішого: build-tools 37
+# (автовибір за замовчуванням) падав у CI з "license is not accepted"
+# для щойно вийшлого компонента, для якого ще не було кроку прийняття
+# ліцензій. 34.0.0/API 34/NDK 25b — стабільна, давно обкатана комбінація.
+android.build_tools_version = 34.0.0
+android.api = 34
+android.ndk = 25b
+
 log_level = 2
 warn_on_root = 1
 
