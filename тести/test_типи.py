@@ -5,9 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.вм import виконати_байткод, ВМ
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.vm import виконати_байткод, ВМ
 
 
 def запустити(джерело, capsys):
@@ -77,7 +77,7 @@ def test_від_ємний_індекс_запис(capsys):
 
 
 def test_від_ємний_індекс_поза_межами_помилка():
-    from ядро.помилки import ПомилкаВиконання
+    from yadro.errors import ПомилкаВиконання
 
     байткод = компілювати(парсити_текст("хай а = [1, 2, 3]\nдрукуй(а[-10])\n"))
     try:
@@ -144,7 +144,7 @@ def test_вилучи_за_від_ємним_індексом(capsys):
 
 
 def test_вилучи_поза_межами_помилка():
-    from ядро.помилки import ПомилкаВиконання
+    from yadro.errors import ПомилкаВиконання
 
     байткод = компілювати(парсити_текст("хай а = [1, 2, 3]\nвилучи(а, 5)\n"))
     try:
@@ -167,7 +167,7 @@ def test_сортуй_рядки(capsys):
 
 
 def test_сортуй_мішанину_типів_помилка():
-    from ядро.помилки import ПомилкаВиконання
+    from yadro.errors import ПомилкаВиконання
 
     байткод = компілювати(парсити_текст('сортуй([1, "два", 3])\n'))
     try:

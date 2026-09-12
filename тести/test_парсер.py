@@ -5,9 +5,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from ядро import аст as А
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаРозбору
+from yadro import syntax as А
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаРозбору
 
 
 def test_хай_і_арифметика():

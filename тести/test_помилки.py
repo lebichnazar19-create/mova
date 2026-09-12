@@ -7,10 +7,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from ядро.компілятор import компілювати
-from ядро.вм import виконати_байткод
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
+from yadro.kompilyator import компілювати
+from yadro.vm import виконати_байткод
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
 
 
 def _рядки_помилки(e):
@@ -38,7 +38,7 @@ def test_помилка_виконання_має_рядок_позицію_і_�
 
 
 def test_помилка_компіляції_має_заголовок():
-    from ядро.помилки import ПомилкаКомпіляції
+    from yadro.errors import ПомилкаКомпіляції
 
     with pytest.raises(ПомилкаКомпіляції) as info:
         компілювати(парсити_текст("перервись\n"))
@@ -46,8 +46,8 @@ def test_помилка_компіляції_має_заголовок():
 
 
 def test_помилка_розбору_має_заголовок():
-    from ядро.лексер import токенізувати
-    from ядро.помилки import ПомилкаРозбору
+    from yadro.lexer import токенізувати
+    from yadro.errors import ПомилкаРозбору
 
     with pytest.raises(ПомилкаРозбору) as info:
         токенізувати("хай х = 1 ~ 2")

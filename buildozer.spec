@@ -10,7 +10,7 @@ title = Мова
 package.name = mova
 package.domain = org.mova
 
-# Корінь проєкту — увесь репозиторій (ядро/, main.py, тести/ тощо).
+# Корінь проєкту — увесь репозиторій (yadro/, main.py, тести/ тощо).
 source.dir = .
 
 # Які файли з source.dir пакувати в APK за розширенням.
@@ -46,7 +46,7 @@ orientation = portrait
 fullscreen = 0
 
 # Дозволів поки що не потрібно — main.py не викликає жодної функції з
-# ядро/пристрій.py (вібрація/камера/GPS тощо), лише компілятор і VM
+# yadro/prystriy.py (вібрація/камера/GPS тощо), лише компілятор і VM
 # у симуляційному режимі. Розкоментувати в міру потреби, коли з'явиться
 # реальна робота з пристроєм:
 # android.permissions = VIBRATE,CAMERA,ACCESS_FINE_LOCATION

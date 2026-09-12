@@ -1,4 +1,4 @@
-"""Малювання прямо в терміналі (ядро/екран.py) — вміст символьного буфера."""
+"""Малювання прямо в терміналі (yadro/ekran.py) — вміст символьного буфера."""
 
 import sys
 from pathlib import Path
@@ -7,11 +7,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.екран as екран
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
-from ядро.вм import ВМ
+import yadro.ekran as екран
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
+from yadro.vm import ВМ
 
 
 @pytest.fixture(autouse=True)

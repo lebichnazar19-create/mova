@@ -1,6 +1,6 @@
 """Малювання: накопичує намальовані фігури, а `покажи()` збирає з них одну
 HTML-сторінку (з вбудованим SVG усередині) і відкриває її на екрані
-пристрою (через ядро/пристрій.py — subprocess лишається лише там, тут його
+пристрою (через yadro/prystriy.py — subprocess лишається лише там, тут його
 немає).
 
 Порядок використання в програмі мовою «Мова»:
@@ -24,8 +24,8 @@ import html
 import re
 from pathlib import Path
 
-from . import пристрій
-from .помилки import ПомилкаВиконання
+from . import prystriy
+from .errors import ПомилкаВиконання
 
 _TERMUX_ДІМ = Path("/data/data/com.termux/files/home")
 
@@ -188,5 +188,5 @@ def покажи():
     _перевірити_полотно()
     ШЛЯХ_ФАЙЛУ.parent.mkdir(parents=True, exist_ok=True)
     ШЛЯХ_ФАЙЛУ.write_text(_html(), encoding="utf-8")
-    пристрій.відкрий(str(ШЛЯХ_ФАЙЛУ))
+    prystriy.відкрий(str(ШЛЯХ_ФАЙЛУ))
     return str(ШЛЯХ_ФАЙЛУ)

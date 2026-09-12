@@ -9,7 +9,7 @@ import os
 import shutil
 import subprocess
 
-from .помилки import ПомилкаВиконання
+from .errors import ПомилкаВиконання
 
 ТАЙМАУТ_СЕК = 120
 ЗМІННА_МОДЕЛІ = "МОВА_МОДЕЛЬ"

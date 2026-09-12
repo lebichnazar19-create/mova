@@ -1,4 +1,4 @@
-"""Живий режим тримай() (ядро/екран.py): рендер кадру, обрізання по краю
+"""Живий режим тримай() (yadro/ekran.py): рендер кадру, обрізання по краю
 термінала, перемальовування при зміні розміру, гарантоване прибирання за
 собою навіть при помилці."""
 
@@ -11,11 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.екран as екран
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
-from ядро.вм import ВМ
+import yadro.ekran as екран
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
+from yadro.vm import ВМ
 
 
 @pytest.fixture(autouse=True)

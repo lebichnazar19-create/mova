@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
 
 
 def опкоди(джерело):

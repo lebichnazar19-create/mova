@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.пристрій as пристрій
-from ядро.помилки import ПомилкаВиконання
+import yadro.prystriy as пристрій
+from yadro.errors import ПомилкаВиконання
 
 
 @pytest.fixture(autouse=True)

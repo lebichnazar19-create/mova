@@ -1,4 +1,4 @@
-"""Малювання: полотно/квадрат/коло/лінія/текст/покажи (ядро/малюнок.py)."""
+"""Малювання: полотно/квадрат/коло/лінія/текст/покажи (yadro/drawing.py)."""
 
 import sys
 from pathlib import Path
@@ -7,12 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.малюнок as малюнок
-import ядро.пристрій as пристрій
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
-from ядро.вм import ВМ
+import yadro.drawing as малюнок
+import yadro.prystriy as пристрій
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
+from yadro.vm import ВМ
 
 
 @pytest.fixture(autouse=True)

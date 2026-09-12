@@ -1,4 +1,4 @@
-"""Режим креслення: ядро/креслення.py — геометрія, теми, види, 3D-проєкції."""
+"""Режим креслення: yadro/drafting.py — геометрія, теми, види, 3D-проєкції."""
 
 import math
 import sys
@@ -8,12 +8,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.креслення as к
-import ядро.пристрій as пристрій
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
-from ядро.вм import ВМ
+import yadro.drafting as к
+import yadro.prystriy as пристрій
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
+from yadro.vm import ВМ
 
 
 @pytest.fixture(autouse=True)

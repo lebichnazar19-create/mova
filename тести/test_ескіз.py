@@ -1,4 +1,4 @@
-"""Параметричний ескіз (ядро/ескіз.py): вузли, сегменти, прив'язки, розв'язувач."""
+"""Параметричний ескіз (yadro/sketch.py): вузли, сегменти, прив'язки, розв'язувач."""
 
 import math
 import sys
@@ -8,11 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-import ядро.ескіз as е
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.помилки import ПомилкаВиконання
-from ядро.вм import ВМ
+import yadro.sketch as е
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.errors import ПомилкаВиконання
+from yadro.vm import ВМ
 
 
 @pytest.fixture(autouse=True)
@@ -219,8 +219,8 @@ def test_розвяжи_суперечливі_умови_дає_чисту_по
 
 
 def test_після_розвяжи_координати_йдуть_у_контур(tmp_path, monkeypatch):
-    import ядро.креслення as к
-    import ядро.пристрій as пристрій
+    import yadro.drafting as к
+    import yadro.prystriy as пристрій
 
     monkeypatch.setattr(к, "ШЛЯХ_ФАЙЛУ", tmp_path / "ескіз.html")
     monkeypatch.setattr(пристрій, "відкрий", lambda ш: None)

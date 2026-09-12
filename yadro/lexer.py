@@ -5,8 +5,8 @@
 
 from dataclasses import dataclass
 
-from .ключові import КЛЮЧОВІ_СЛОВА
-from .помилки import ПомилкаРозбору
+from .keywords import КЛЮЧОВІ_СЛОВА
+from .errors import ПомилкаРозбору
 
 
 @dataclass

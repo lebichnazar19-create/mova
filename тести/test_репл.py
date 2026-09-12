@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ядро import repl
+from yadro import repl
 
 
 def _запустити_з_вводом(рядки, monkeypatch, capsys):

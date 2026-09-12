@@ -5,8 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest
 
-from ядро.лексер import токенізувати
-from ядро.помилки import ПомилкаРозбору
+from yadro.lexer import токенізувати
+from yadro.errors import ПомилкаРозбору
 
 
 def типи(джерело):

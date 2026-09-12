@@ -3,9 +3,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ядро.компілятор import компілювати
-from ядро.парсер import парсити_текст
-from ядро.вм import виконати_байткод
+from yadro.kompilyator import компілювати
+from yadro.parser import парсити_текст
+from yadro.vm import виконати_байткод
 
 ПРИКЛАДИ = Path(__file__).resolve().parent.parent / "приклади"
 
@@ -39,7 +39,7 @@ def test_будильник_компілюється_і_виконується(c
 
 
 def test_будильник_розряджена_батарея_вібрує_і_сповіщає(capsys, monkeypatch):
-    import ядро.пристрій as пристрій
+    import yadro.prystriy as пристрій
 
     виклики = []
     monkeypatch.setattr(пристрій, "батарея", lambda: {"percentage": 5, "status": "тест"})
@@ -50,7 +50,7 @@ def test_будильник_розряджена_батарея_вібрує_і_
 
     джерело = (ПРИКЛАДИ / "будильник.мова").read_text(encoding="utf-8")
     байткод = компілювати(парсити_текст(джерело))
-    from ядро.вм import ВМ
+    from yadro.vm import ВМ
 
     вм = ВМ(без_пристрою=False)
     # підмінити прив'язки нативних функцій уже після їх реєстрації в __init__

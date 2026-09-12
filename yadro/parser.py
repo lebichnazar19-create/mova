@@ -1,8 +1,8 @@
 """Парсер: перетворює потік токенів на AST."""
 
-from .лексер import токенізувати
-from .помилки import ПомилкаРозбору
-from . import аст as А
+from .lexer import токенізувати
+from .errors import ПомилкаРозбору
+from . import syntax as А
 
 
 class Парсер:
