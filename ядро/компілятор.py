@@ -8,6 +8,7 @@
     MAKE_FUNCTION [ім'я, параметри, адреса_тіла]  — реєструє дію
     MAKE_LIST     кількість_елементів             — збирає список зі стека
     INDEX_GET / INDEX_SET                         — робота з елементом списку
+    SLICE_GET                                     — зріз списку/рядка [a:b]
 """
 
 from . import аст as А
@@ -281,6 +282,18 @@ class Компілятор:
         self._вираз(вузол.колекція)
         self._вираз(вузол.індекс)
         self._emit("INDEX_GET", None)
+
+    def _в_Зріз(self, вузол):
+        self._вираз(вузол.колекція)
+        if вузол.початок is not None:
+            self._вираз(вузол.початок)
+        else:
+            self._emit("PUSH_CONST", self._константа(None))
+        if вузол.кінець is not None:
+            self._вираз(вузол.кінець)
+        else:
+            self._emit("PUSH_CONST", self._константа(None))
+        self._emit("SLICE_GET", None)
 
     def _в_Виклик(self, вузол):
         for а in вузол.аргументи:
