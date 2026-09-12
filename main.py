@@ -1,60 +1,47 @@
 #!/usr/bin/env python3
-"""Точка входу Kivy-застосунку «Мова» для Android (python-for-android/Buildozer
-шукає саме файл main.py в source.dir — див. buildozer.spec).
+"""Точка входу Kivy-застосунку «Мова» для Android: редактор коду з запуском.
 
-Навмисно мінімальний: лише доводить, що інтерпретатор «Мова» (yadro/*)
-пакується й виконується всередині APK. Реальна взаємодія з пристроєм
-(вібрація тощо, yadro/prystriy.py) — окреме завдання, тут не чіпається.
+Екран: панель кнопок («Виконати», «Очистити вивід»), поле коду
+(моноширинний шрифт), панель швидких вставок (дужки, лапки, ключові слова),
+знизу прокручуваний вивід. Код автозберігається у user_data_dir/код.мова.
 
-Тому демо-програма нижче:
-- НЕ викликає жодної функції з yadro/prystriy.py (вібруй/сповісти/...) —
-  щоб не смикати неіснуючі на звичайному Android termux-* утиліти;
-- НЕ викликає питай() — на Android немає консольного stdin, а перенесення
-  REPL/питай() на чергу повідомлень з UI-потоком — окреме завдання;
-- запускається через виконати_байткод(..., без_пристрою=True) — той самий
-  симуляційний режим, що й `мова.py --без-пристрою` — тому навіть якщо
-  колись до демо додадуть виклик пристрою, він не впаде на реальний
-  subprocess, а лише надрукує, що б він зробив;
-- нічого не читає з диска й не чекає вводу з термінала — безпечно для
-  Android, де ні консолі, ні stdin у звичному сенсі немає.
-
-Захист від «тихого» вильоту (APK №6 запускався й одразу падав, без ADB
-неможливо було побачити чому): жоден імпорт yadro/* не відбувається на
-верхньому рівні модуля — лише всередині build(), у try/except. Якщо
-там щось впаде (наприклад, yadro/* чомусь не імпортується саме в
-Android-збірці python-for-android), застосунок усе одно підніме
-Kivy-вікно й покаже повний traceback великим шрифтом на екрані
-(і продублює той самий текст у user_data_dir/crash.txt), замість того
-щоб вилетіти ще до першого намальованого кадру.
+Уся робота з yadro/* іде через zapusk.виконати_код (без Kivy, тестується на
+комп'ютері). Імпорти yadro/* не відбуваються на верхньому рівні: якщо щось
+не імпортується саме в Android-збірці, застосунок усе одно підніме вікно й
+покаже traceback разом із діагностикою (версія, listdir, sys.path) — і
+продублює її у user_data_dir/crash.txt.
 """
 
-import io
 import os
 import sys
 import traceback
-from contextlib import redirect_stdout
 from pathlib import Path
 
 сюди = Path(__file__).resolve().parent
 if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
-# Тримати в синхроні з `version = ...` у buildozer.spec: сам spec в APK не
-# пакується (source.include_exts), тож звідти на пристрої його не
-# прочитати. Показується першим рядком на екрані — щоб одразу відрізнити
-# «стоїть старий APK» від «у новий APK потрапив старий main.py».
-ВЕРСІЯ = "0.2"
+# Тримати в синхроні з `version = ...` у buildozer.spec.
+ВЕРСІЯ = "0.3"
 
-# Kivy — єдине, що лишається на верхньому рівні: без нього нема чим і
-# показати помилку на екрані, тож ловити тут нема сенсу (якщо впаде цей
-# імпорт — застосунок у принципі не може підняти вікно, крашлог нікуди
-# писати теж нема як).
 from kivy.app import App
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.textinput import TextInput
 
-ДЕМО = (
+# Вікно стискається над екранною клавіатурою, тож панель швидких кнопок
+# (одразу під полем коду) лишається видимою над клавіатурою.
+Window.softinput_mode = "resize"
+
+МОНО = "RobotoMono-Regular"  # входить у Kivy, підтримує кирилицю
+ФАЙЛ_КОДУ = "код.мова"
+
+ПОЧАТКОВИЙ_КОД = (
     'друкуй("Привіт з Android!")\n'
     "хай а = [1, 2, 3]\n"
     "додай(а, 4)\n"
@@ -64,123 +51,158 @@ from kivy.uix.scrollview import ScrollView
     'друкуй("5 у квадраті =", у_квадраті(5))\n'
 )
 
+# (підпис, що вставити). Порожній підпис = взяти текст.
+ШВИДКІ_ВСТАВКИ = [
+    ("(", "("), (")", ")"), ("[", "["), ("]", "]"), ('"', '"'),
+    ("=", " = "), (":", ":"), ("відступ", "    "),
+    ("хай", "хай "), ("дія", "дія "), ("якщо", "якщо "),
+    ("інакше", "інакше"), ("поки", "поки "), ("для", "для "),
+    ("друкуй", "друкуй("), ("поверни", "поверни "),
+]
+
 
 def _шапка_діагностики():
-    """Безумовно виводиться ПЕРШИМ на екрані — і на демо, і на крах-екрані:
-    версія застосунку, os.listdir(os.path.dirname(os.path.abspath(__file__)))
-    (те, що реально лежить поруч із main.py всередині APK) і sys.path.
-    Коли щось не імпортується, цей блок одразу каже, який це взагалі
-    білд і чи файл/тека туди потрапили — замість здогадок за самим лише
-    текстом traceback. Жоден виняток звідси не виходить."""
+    """Версія, вміст теки з main.py, sys.path — лише для крах-екрана."""
     рядки = [f"Мова, версія {ВЕРСІЯ}"]
-
     try:
         тека = os.path.dirname(os.path.abspath(__file__))
-    except Exception as e:
-        тека = None
-        рядки.append(f"__file__: (не вдалося: {e!r})")
-
-    if тека is not None:
         рядки.append(f"os.listdir({тека!r}):")
-        try:
-            рядки.append(repr(sorted(os.listdir(тека))))
-        except Exception as e:
-            рядки.append(f"(не вдалося: {e!r})")
-
+        рядки.append(repr(sorted(os.listdir(тека))))
         шлях_yadro = os.path.join(тека, "yadro")
         рядки.append(f"os.listdir({шлях_yadro!r}):")
         try:
             рядки.append(repr(sorted(os.listdir(шлях_yadro))))
         except Exception as e:
             рядки.append(f"(не вдалося: {e!r})")
-
-    рядки.append("sys.path:")
-    try:
-        рядки.extend(f"  {ш!r}" for ш in sys.path)
     except Exception as e:
-        рядки.append(f"(не вдалося: {e!r})")
-
+        рядки.append(f"(діагностика теки не вдалася: {e!r})")
+    рядки.append("sys.path:")
+    рядки.extend(f"  {ш!r}" for ш in sys.path)
     return "\n".join(рядки)
 
 
-def _записати_крешлог(текст, тека_даних_застосунку):
-    """Найкраще зусилля: сам запис файлу теж може впасти (наприклад,
-    user_data_dir ще не готовий) — тоді просто мовчки нічого не пишемо,
-    головне не заважати показати помилку хоча б на екрані."""
+def _записати_крешлог(текст, тека_даних):
     try:
-        тека = Path(тека_даних_застосунку)
+        тека = Path(тека_даних)
         тека.mkdir(parents=True, exist_ok=True)
         (тека / "crash.txt").write_text(текст, encoding="utf-8")
     except Exception:
         pass
 
 
-def запустити_демо_або_помилку(тека_даних_застосунку, шапка=""):
-    """Повертає текст для показу на екрані: або вивід друкуй() з демо, або
-    повний traceback (і тоді додатково пише його у crash.txt, разом із
-    переданою шапкою діагностики). Жоден виняток звідси не виходить —
-    усе спіймано всередині.
-
-    Імпорти yadro/* — навмисно тут, а не на верхньому рівні файлу: якщо в
-    yadro/*.py щось не імпортується саме в цій Android-збірці (наприклад,
-    відсутній модуль stdlib у зборці python-for-android), застосунок усе
-    одно встигає підняти Kivy-вікно й показати причину, а не впасти ще
-    до першого кадру."""
-    буфер = io.StringIO()
-    try:
-        from yadro.vm import виконати_байткод
-        from yadro.kompilyator import компілювати
-        from yadro.parser import парсити_текст
-
-        байткод = компілювати(парсити_текст(ДЕМО))
-        with redirect_stdout(буфер):
-            виконати_байткод(байткод, без_пристрою=True)
-        return буфер.getvalue()
-    except Exception:
-        трейс = traceback.format_exc()
-        вивід_до_падіння = буфер.getvalue()
-        текст_помилки = "ПОМИЛКА під час запуску демо «Мова»:\n\n" + трейс
-        if вивід_до_падіння:
-            текст_помилки += "\n--- друкуй() встиг вивести до падіння ---\n" + вивід_до_падіння
-        _записати_крешлог(шапка + "\n\n" + текст_помилки, тека_даних_застосунку)
-        return текст_помилки
+def _прокручуваний_текст(текст="", шрифт=None, розмір="15sp"):
+    """ScrollView з Label, що переносить рядки й росте у висоту."""
+    мітка = Label(
+        text=текст, size_hint_y=None, halign="left", valign="top",
+        font_size=розмір, **({"font_name": шрифт} if шрифт else {}),
+    )
+    мітка.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
+    мітка.bind(texture_size=lambda і, р: setattr(і, "height", р[1] + dp(8)))
+    прокрутка = ScrollView()
+    прокрутка.add_widget(мітка)
+    return прокрутка, мітка
 
 
 class МоваApp(App):
     title = "Мова"
 
     def build(self):
-        # Шапка — завжди першою, без умов: версія, вміст теки з main.py,
-        # sys.path. Демо чи traceback ідуть уже під нею.
-        шапка = _шапка_діагностики()
         try:
-            тіло = запустити_демо_або_помилку(self.user_data_dir, шапка)
+            return self._зібрати_редактор()
         except Exception:
-            # Останній рубіж: запустити_демо_або_помилку сама ловить усе
-            # зсередини, але якщо впаде щось поза нею (наприклад, сам
-            # self.user_data_dir) — не мовчати й тут теж.
+            шапка = _шапка_діагностики()
             тіло = "ПОМИЛКА в build():\n\n" + traceback.format_exc()
-            _записати_крешлог(шапка + "\n\n" + тіло, str(Path.home()))
-        текст = шапка + "\n" + "-" * 40 + "\n" + тіло
+            try:
+                тека = self.user_data_dir
+            except Exception:
+                тека = str(Path.home())
+            _записати_крешлог(шапка + "\n\n" + тіло, тека)
+            прокрутка, _ = _прокручуваний_текст(тіло + "\n" + "-" * 40 + "\n" + шапка)
+            return прокрутка
 
-        корінь = BoxLayout(orientation="vertical", padding=16, spacing=8)
+    # ---- екран редактора ------------------------------------------------
 
-        вивід = Label(
-            text=текст,
-            size_hint_y=None,
-            halign="left",
-            valign="top",
-            font_size="18sp",
+    def _зібрати_редактор(self):
+        self._шлях_коду = Path(self.user_data_dir) / ФАЙЛ_КОДУ
+        корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
+
+        кнопки = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
+        кнопки.add_widget(Button(text="Виконати", on_release=self._виконати))
+        кнопки.add_widget(Button(text="Очистити вивід", on_release=self._очистити))
+        корінь.add_widget(кнопки)
+
+        self.код = TextInput(
+            text=self._прочитати_код(), font_name=МОНО, font_size=sp(15),
+            multiline=True, size_hint_y=0.55,
+            auto_indent=True, do_wrap=False,
         )
-        # авто-перенос по ширині й авто-висота під текст — стандартний
-        # спосіб зробити Label, що прокручується, в Kivy
-        вивід.bind(width=lambda інст, ш: setattr(інст, "text_size", (ш, None)))
-        вивід.bind(texture_size=lambda інст, розмір: setattr(інст, "height", розмір[1]))
+        self.код.bind(text=self._зберегти_код)
+        корінь.add_widget(self.код)
 
-        прокрутка = ScrollView()
-        прокрутка.add_widget(вивід)
-        корінь.add_widget(прокрутка)
+        корінь.add_widget(self._панель_вставок())
+
+        self._прокрутка_виводу, self.вивід = _прокручуваний_текст(
+            "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
+        )
+        корінь.add_widget(self._прокрутка_виводу)
         return корінь
+
+    def _панель_вставок(self):
+        """Горизонтально прокручуваний ряд кнопок, що вставляють текст у
+        позицію курсора поля коду."""
+        ряд = BoxLayout(size_hint=(None, 1), spacing=dp(4))
+        ряд.bind(minimum_width=ряд.setter("width"))
+        for підпис, текст in ШВИДКІ_ВСТАВКИ:
+            кнопка = Button(
+                text=підпис, size_hint_x=None, font_size=sp(15),
+                width=max(dp(40), dp(11) * len(підпис) + dp(16)),
+            )
+            кнопка.bind(on_release=lambda к, т=текст: self._вставити(т))
+            ряд.add_widget(кнопка)
+        прокрутка = ScrollView(
+            size_hint_y=None, height=dp(44), do_scroll_y=False, bar_width=0,
+        )
+        прокрутка.add_widget(ряд)
+        return прокрутка
+
+    # ---- дії --------------------------------------------------------------
+
+    def _вставити(self, текст):
+        self.код.insert_text(текст)
+        # Дотик до кнопки знімає фокус із поля — повертаємо, щоб клавіатура
+        # не ховалась і курсор лишався на місці.
+        Clock.schedule_once(lambda dt: setattr(self.код, "focus", True), 0)
+
+    def _виконати(self, *_):
+        try:
+            from zapusk import виконати_код
+            текст, успіх = виконати_код(self.код.text)
+        except Exception:
+            текст, успіх = "Внутрішня помилка:\n" + traceback.format_exc(), False
+        if not текст.strip():
+            текст = "(програма нічого не надрукувала)"
+        self.вивід.text = текст
+        Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 1), 0)
+
+    def _очистити(self, *_):
+        self.вивід.text = ""
+
+    # ---- автозбереження ----------------------------------------------------
+
+    def _прочитати_код(self):
+        try:
+            if self._шлях_коду.exists():
+                return self._шлях_коду.read_text(encoding="utf-8")
+        except Exception:
+            pass
+        return ПОЧАТКОВИЙ_КОД
+
+    def _зберегти_код(self, _інст, текст):
+        try:
+            self._шлях_коду.parent.mkdir(parents=True, exist_ok=True)
+            self._шлях_коду.write_text(текст, encoding="utf-8")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
