@@ -3,6 +3,9 @@ name: Збірка APK
 # На кожен push у main — зібрати Android APK через Buildozer і покласти
 # готовий файл в Artifacts запуску. workflow_dispatch — щоб можна було
 # перезапустити збірку вручну без нового коміту.
+#
+# Buildozer ставиться напряму на ubuntu-latest (без ArtemSBulgakov/
+# buildozer-action — його Docker-образ перестав збиратись).
 on:
   push:
     branches: [main]
@@ -16,29 +19,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Глобальний кеш Buildozer (Android SDK/NDK, platform-tools) —
-      # ці завантаження важать сотні МБ і однакові від збірки до збірки,
-      # доки не зміниться buildozer.spec; кеш разюче скорочує час
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Системні пакети для python-for-android
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev \
+            build-essential ccache
+
+      - name: Buildozer + Cython
+        run: pip install buildozer cython
+
+      # Глобальний кеш Buildozer (Android SDK/NDK, platform-tools) і Gradle
+      # (залежності/дистрибутив) — важать сотні МБ і однакові від збірки
+      # до збірки, доки не зміниться buildozer.spec; кеш скорочує час
       # повторних запусків.
-      - name: Кеш Buildozer (SDK/NDK)
+      - name: Кеш Buildozer і Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
-            .buildozer
+            ~/.gradle
           key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      - name: Зібрати APK (Buildozer)
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
-        with:
-          buildozer_version: stable
+      - name: Зібрати APK (buildozer android debug)
+        run: buildozer -v android debug
 
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: мова-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
           if-no-files-found: error
