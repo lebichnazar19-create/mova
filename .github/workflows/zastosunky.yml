@@ -16,36 +16,34 @@ on:
       - ".github/workflows/zastosunky.yml"
   workflow_dispatch: {}
 
+# Ідентифікатори jobs/steps/outputs/matrix — латиницею: GitHub не приймає
+# кирилицю в них (workflow тоді взагалі не розбирається, 0 jobs); назви
+# (name:) можуть бути українськими.
 jobs:
-  список:
+  list:
     name: Які застосунки збирати
     runs-on: ubuntu-22.04
     outputs:
-      застосунки: ${{ steps.знайти.outputs.список }}
+      apps: ${{ steps.find.outputs.apps }}
     steps:
       - uses: actions/checkout@v4
-      - id: знайти
+      - id: find
         run: |
-          список=$(python3 - <<'PY'
-          import json, pathlib
-          т = pathlib.Path("застосунки")
-          print(json.dumps(sorted(п.name for п in т.iterdir() if п.is_dir() and (п / "програма.мова").is_file()) if т.is_dir() else [], ensure_ascii=False))
-          PY
-          )
-          echo "список=$список" >> "$GITHUB_OUTPUT"
-          echo "Застосунки: $список"
+          apps=$(python3 -c 'import json, pathlib; t = pathlib.Path("застосунки"); print(json.dumps(sorted(p.name for p in t.iterdir() if p.is_dir() and (p / "програма.мова").is_file()) if t.is_dir() else [], ensure_ascii=False))')
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          echo "Застосунки: $apps"
 
-  збірка:
-    name: APK «${{ matrix.застосунок }}»
-    needs: список
-    if: needs.список.outputs.застосунки != '[]'
+  build:
+    name: APK «${{ matrix.app }}»
+    needs: list
+    if: needs.list.outputs.apps != '[]'
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        застосунок: ${{ fromJSON(needs.список.outputs.застосунки) }}
+        app: ${{ fromJSON(needs.list.outputs.apps) }}
     env:
-      ЗАСТОСУНОК: ${{ matrix.застосунок }}
+      APP: ${{ matrix.app }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,11 +83,11 @@ jobs:
 
       - name: Докласти ядро мови до застосунку
         run: |
-          cp -r yadro zapusk.py vidzhety.py "застосунки/$ЗАСТОСУНОК/"
-          ls -la "застосунки/$ЗАСТОСУНОК"
+          cp -r yadro zapusk.py vidzhety.py "застосунки/$APP/"
+          ls -la "застосунки/$APP"
 
       - name: Прийняти ліцензії Android SDK
-        working-directory: застосунки/${{ matrix.застосунок }}
+        working-directory: застосунки/${{ matrix.app }}
         run: |
           set -e
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
@@ -104,12 +102,12 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
 
       - name: Зібрати APK
-        working-directory: застосунки/${{ matrix.застосунок }}
+        working-directory: застосунки/${{ matrix.app }}
         run: buildozer -v android debug
 
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.застосунок }}
-          path: застосунки/${{ matrix.застосунок }}/bin/*.apk
+          name: ${{ matrix.app }}
+          path: застосунки/${{ matrix.app }}/bin/*.apk
           if-no-files-found: error

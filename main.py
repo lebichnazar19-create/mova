@@ -48,7 +48,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "1.1"
+ВЕРСІЯ = "1.1.1"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -62,6 +62,7 @@ from kivy.uix.button import Button
 from kivy.uix.codeinput import CodeInput
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.stacklayout import StackLayout
 from kivy.uix.stencilview import StencilView
 from kivy.uix.textinput import TextInput
 
@@ -402,8 +403,10 @@ class МоваApp(App):
         обробник(текст)
 
     def _панель_кнопок(self):
-        """Верхній ряд дій. Горизонтально прокручуваний: на вузькому екрані
-        чотири кнопки в один ряд не вміщаються."""
+        """Верхні кнопки дій. Не один прокручуваний ряд (на телефоні в
+        нього влазило лише 4 перші кнопки, решта ховалась за правим
+        краєм), а StackLayout, що переносить кнопки на наступні рядки —
+        усі видно одразу. Ліворуч — версія, щоб було зрозуміло, яка збірка."""
         self._кн_виконати = Button(text="Виконати", on_release=self._виконати)
         self._кн_стоп = Button(text="Стоп", on_release=self._стоп, disabled=True)
         кнопки = [
@@ -418,23 +421,38 @@ class МоваApp(App):
             Button(text="Налаштування", on_release=self._налаштування),
             Button(text="Довідка", on_release=self._довідка),
         ]
+        панель = StackLayout(orientation="lr-tb", size_hint_y=None, spacing=(dp(4), dp(4)))
+        панель.bind(minimum_height=панель.setter("height"))
+        версія = Label(
+            text=f"Мова {ВЕРСІЯ}", size_hint=(None, None), height=dp(38), width=dp(74),
+            font_size=sp(13), color=(0.45, 0.45, 0.5, 1),
+        )
+        панель.add_widget(версія)
         for к in кнопки:
-            к.size_hint_x = None
-            к.width = dp(11) * len(к.text) + dp(28)
-        return прокручуваний_ряд(кнопки, висота=dp(44))
+            к.size_hint = (None, None)
+            к.height = dp(38)
+            к.width = dp(9) * len(к.text) + dp(22)
+            к.font_size = sp(14)
+            панель.add_widget(к)
+        return панель
 
     def _панель_вставок(self):
-        """Горизонтально прокручуваний ряд кнопок швидкого вводу: каркас
-        конструкції (redaktor.КАРКАСИ) або простий текст."""
-        кнопки = []
-        for ключ in redaktor.КНОПКИ:
-            кнопка = Button(
-                text=ключ, size_hint_x=None, font_size=sp(15),
-                width=max(dp(40), dp(11) * len(ключ) + dp(16)),
-            )
-            кнопка.bind(on_release=lambda к, кл=ключ: self._вставити(кл))
-            кнопки.append(кнопка)
-        return прокручуваний_ряд(кнопки, висота=dp(44))
+        """Кнопки швидкого вводу — два горизонтально прокручувані ряди
+        (один ряд ховав половину кнопок за правим краєм): зверху дужки й
+        базові слова, знизу — блоки (поки/для/дія/тип/спробуй…)."""
+        половина = (len(redaktor.КНОПКИ) + 1) // 2
+        ряди = BoxLayout(orientation="vertical", size_hint_y=None, height=dp(84), spacing=dp(2))
+        for частина in (redaktor.КНОПКИ[:половина], redaktor.КНОПКИ[половина:]):
+            кнопки = []
+            for ключ in частина:
+                кнопка = Button(
+                    text=ключ, size_hint_x=None, font_size=sp(15),
+                    width=max(dp(40), dp(11) * len(ключ) + dp(16)),
+                )
+                кнопка.bind(on_release=lambda к, кл=ключ: self._вставити(кл))
+                кнопки.append(кнопка)
+            ряди.add_widget(прокручуваний_ряд(кнопки, висота=dp(41)))
+        return ряди
 
     # ---- редагування -------------------------------------------------------
 

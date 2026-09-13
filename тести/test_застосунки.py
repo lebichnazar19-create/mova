@@ -112,7 +112,13 @@ def test_workflow_збирає_кожну_теку_і_докладає_ядро(
     текст = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "zastosunky.yml").read_text(encoding="utf-8")
     assert "matrix:" in текст and "fromJSON" in текст
     assert "cp -r yadro zapusk.py vidzhety.py" in текст
-    assert "name: ${{ matrix.застосунок }}" in текст   # артефакт зветься як програма
+    assert "name: ${{ matrix.app }}" in текст   # артефакт зветься як програма
+    import re
+    # ідентифікатори jobs/steps і вирази ${{ }} — лише латиниця, інакше GitHub не розбирає файл
+    for id_ in re.findall(r"^  ([^\s:#-][^:]*):$", текст, re.M) + re.findall(r"^\s+- id: (\S+)$", текст, re.M):
+        assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]*", id_), id_
+    for вираз in re.findall(r"\$\{\{(.*?)\}\}", текст):
+        assert вираз.isascii(), вираз
 
 
 # ---- публікація в GitHub через API (без мережі) --------------------------------------
