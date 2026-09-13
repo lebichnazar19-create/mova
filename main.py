@@ -2,16 +2,22 @@
 """Точка входу Kivy-застосунку «Мова» для Android: редактор коду з запуском.
 
 Екран: прокручувана панель кнопок («Виконати», «Стоп», «Очистити вивід»,
-«Очистити код»), поле коду (моноширинний шрифт), панель швидких вставок
-(дужки, лапки, ключові слова), знизу прокручуваний вивід. Код
+«Очистити код»), поле коду з номерами рядків і підсвіткою (CodeInput +
+лексер pygments з redaktor.py), рядок пояснення помилки, панель швидкого
+вводу (каркаси конструкцій), знизу прокручуваний вивід. Код
 автозберігається у user_data_dir/код.мова. Програма виконується в окремому
 потоці, «Стоп» виставляє ВМ.зупинено — див. zapusk.виконати_код.
 
-Уся робота з yadro/* іде через zapusk.виконати_код (без Kivy, тестується на
-комп'ютері). Імпорти yadro/* не відбуваються на верхньому рівні: якщо щось
-не імпортується саме в Android-збірці, застосунок усе одно підніме вікно й
-покаже traceback разом із діагностикою (версія, listdir, sys.path) — і
-продублює її у user_data_dir/crash.txt.
+Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
+помилок) живе в redaktor.py без Kivy і тестується на комп'ютері; тут —
+лише прив'язка до віджетів. Рядок з помилкою підкреслюється червоним;
+пояснення з'являється після дотику до цього рядка і зникає при наборі.
+
+Уся робота з yadro/* іде через zapusk.виконати_код і redaktor.перевірити.
+Імпорти yadro/* не відбуваються на верхньому рівні: якщо щось не
+імпортується саме в Android-збірці, застосунок усе одно підніме вікно й
+покаже traceback разом із діагностикою — і продублює її у
+user_data_dir/crash.txt.
 """
 
 import os
@@ -25,17 +31,23 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.5"
+ВЕРСІЯ = "0.6"
 
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.core.text import Label as CoreLabel
 from kivy.core.window import Window
+from kivy.graphics import Color, Line
 from kivy.metrics import dp, sp
+from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.codeinput import CodeInput
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.textinput import TextInput
+from kivy.uix.stencilview import StencilView
+
+import redaktor
 
 # Вікно стискається над екранною клавіатурою, тож панель швидких кнопок
 # (одразу під полем коду) лишається видимою над клавіатурою.
@@ -43,6 +55,7 @@ Window.softinput_mode = "resize"
 
 МОНО = "RobotoMono-Regular"  # входить у Kivy, підтримує кирилицю
 ФАЙЛ_КОДУ = "код.мова"
+ЗАТРИМКА_ПЕРЕВІРКИ = 0.7  # с після останнього набору — перевірити код
 
 ПОЧАТКОВИЙ_КОД = (
     'друкуй("Привіт з Android!")\n'
@@ -53,17 +66,6 @@ Window.softinput_mode = "resize"
     "    поверни х * х\n"
     'друкуй("5 у квадраті =", у_квадраті(5))\n'
 )
-
-# (підпис, що вставити). Порожній підпис = взяти текст.
-ШВИДКІ_ВСТАВКИ = [
-    ("(", "("), (")", ")"), ("[", "["), ("]", "]"), ('"', '"'),
-    ("=", " = "), (":", ":"), ("відступ", "    "),
-    ("хай", "хай "), ("дія", "дія "), ("якщо", "якщо "),
-    ("інакше", "інакше"), ("поки", "поки "), ("для", "для "),
-    ("друкуй", "друкуй("), ("поверни", "поверни "),
-    ("тип", "тип "), ("спробуй", "спробуй"), ("якщо помилка", "якщо помилка"),
-    ("{", "{"), ("}", "}"), (".", "."),
-]
 
 
 def _шапка_діагностики():
@@ -121,6 +123,108 @@ def _прокручуваний_ряд(кнопки, висота):
     return прокрутка
 
 
+class ПолеКоду(CodeInput):
+    """CodeInput з автовідступом, автозакриттям дужок/лапок і червоним
+    підкресленням рядка з помилкою (рядок_помилки, з 1; 0 — немає).
+    Дотик до рядка повідомляє при_дотику(номер_рядка_з_1)."""
+
+    рядок_помилки = NumericProperty(0)
+
+    def __init__(self, при_дотику=None, **kw):
+        super().__init__(**kw)
+        self.при_дотику = при_дотику
+        with self.canvas.after:
+            self._колір_підкр = Color(0.9, 0.15, 0.15, 0)
+            self._лінія_підкр = Line(points=[0, 0, 0, 0], width=dp(1.2))
+        self.bind(
+            scroll_y=self._оновити_підкреслення, scroll_x=self._оновити_підкреслення,
+            pos=self._оновити_підкреслення, size=self._оновити_підкреслення,
+            text=self._оновити_підкреслення, line_height=self._оновити_підкреслення,
+            рядок_помилки=self._оновити_підкреслення,
+        )
+
+    # ---- набір ----------------------------------------------------------
+
+    def insert_text(self, substring, from_undo=False):
+        if not from_undo and len(substring) == 1:
+            курсор = self.cursor_index()
+            if substring == "\n":
+                substring = redaktor.автовідступ(self.text, курсор)
+            else:
+                результат = redaktor.автозакриття(self.text, курсор, substring)
+                if результат is not None:
+                    вставка, новий_курсор = результат
+                    if вставка:
+                        super().insert_text(вставка, from_undo)
+                    self.cursor = self.get_cursor_from_index(новий_курсор)
+                    return
+        return super().insert_text(substring, from_undo)
+
+    # ---- дотик ----------------------------------------------------------
+
+    def on_touch_down(self, touch):
+        результат = super().on_touch_down(touch)
+        if self.collide_point(*touch.pos) and self.при_дотику is not None:
+            Clock.schedule_once(lambda dt: self.при_дотику(self.cursor_row + 1), 0)
+        return результат
+
+    # ---- підкреслення ---------------------------------------------------
+
+    def _y_низ_рядка(self, номер):
+        """y нижнього краю рядка (з 1) у координатах вікна."""
+        return self.top - self.padding[1] + self.scroll_y - номер * self.line_height
+
+    def _оновити_підкреслення(self, *_):
+        номер = int(self.рядок_помилки)
+        if номер <= 0 or номер > self.text.count("\n") + 1:
+            self._колір_підкр.a = 0
+            return
+        y = self._y_низ_рядка(номер) + dp(2)
+        if y < self.y or y > self.top:
+            self._колір_підкр.a = 0
+            return
+        self._колір_підкр.a = 1
+        self._лінія_підкр.points = [
+            self.x + self.padding[0], y, self.right - self.padding[2], y,
+        ]
+
+
+class НомериРядків(StencilView):
+    """Колонка номерів рядків, вирівняна з рядками поля коду і синхронно
+    з ним прокручувана."""
+
+    def __init__(self, поле, **kw):
+        super().__init__(size_hint_x=None, width=dp(36), **kw)
+        self.поле = поле
+        self.мітка = Label(
+            font_name=поле.font_name, font_size=поле.font_size,
+            halign="right", valign="top", color=(0.5, 0.5, 0.56, 1),
+            size_hint=(None, None),
+        )
+        self.add_widget(self.мітка)
+        поле.bind(
+            text=self._оновити, scroll_y=self._оновити, size=self._оновити,
+            pos=self._оновити, line_height=self._оновити, font_size=self._оновити,
+        )
+        self.bind(size=self._оновити, pos=self._оновити)
+        Clock.schedule_once(self._оновити, 0)
+
+    def _оновити(self, *_):
+        поле = self.поле
+        n = поле.text.count("\n") + 1
+        self.мітка.text = "\n".join(str(i) for i in range(1, n + 1))
+        # Висота рядка Label — множник від висоти рядка шрифту; підганяємо
+        # під фактичну висоту рядка поля коду, щоб номери не «пливли».
+        рядок_шрифту = CoreLabel(font_name=поле.font_name, font_size=поле.font_size).get_extents("0")[1]
+        if рядок_шрифту:
+            self.мітка.line_height = поле.line_height / рядок_шрифту
+        self.мітка.font_size = поле.font_size
+        self.мітка.size = (self.width - dp(6), n * поле.line_height + dp(4))
+        self.мітка.text_size = self.мітка.size
+        self.мітка.x = self.x
+        self.мітка.top = поле.top - поле.padding[1] + поле.scroll_y
+
+
 class МоваApp(App):
     title = "Мова"
 
@@ -145,17 +249,35 @@ class МоваApp(App):
         self._потік = None          # потік виконання (threading.Thread) або None
         self._вм = None             # ВМ поточного запуску — для «Стоп»
         self._стоп_запитано = False
+        self._помилка = None        # (рядок, пояснення) або None
+        self._перевірка = None      # запланована перевірка коду (Clock event)
         корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
 
         корінь.add_widget(self._панель_кнопок())
 
-        self.код = TextInput(
+        self.код = ПолеКоду(
+            при_дотику=self._при_дотику_до_рядка,
             text=self._прочитати_код(), font_name=МОНО, font_size=sp(15),
-            multiline=True, size_hint_y=0.55,
-            auto_indent=True, do_wrap=False,
+            multiline=True, auto_indent=False, do_wrap=False,
+            style_name="default",
         )
-        self.код.bind(text=self._зберегти_код)
-        корінь.add_widget(self.код)
+        if redaktor.МоваLexer is not None:
+            self.код.lexer = redaktor.МоваLexer()
+        self.код.bind(text=self._при_зміні_тексту)
+
+        редактор = BoxLayout(orientation="horizontal", size_hint_y=0.55, spacing=dp(2))
+        редактор.add_widget(НомериРядків(self.код))
+        редактор.add_widget(self.код)
+        корінь.add_widget(редактор)
+
+        # Пояснення помилки — звичайний рядок під полем коду (не вікно);
+        # висота 0 = сховано.
+        self.пояснення = Label(
+            text="", size_hint_y=None, height=0, halign="left", valign="top",
+            color=(0.85, 0.15, 0.15, 1), font_size=sp(13),
+        )
+        self.пояснення.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
+        корінь.add_widget(self.пояснення)
 
         корінь.add_widget(self._панель_вставок())
 
@@ -163,6 +285,7 @@ class МоваApp(App):
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
         корінь.add_widget(self._прокрутка_виводу)
+        self._запланувати_перевірку()
         return корінь
 
     def _панель_кнопок(self):
@@ -182,25 +305,87 @@ class МоваApp(App):
         return _прокручуваний_ряд(кнопки, висота=dp(44))
 
     def _панель_вставок(self):
-        """Горизонтально прокручуваний ряд кнопок, що вставляють текст у
-        позицію курсора поля коду."""
+        """Горизонтально прокручуваний ряд кнопок швидкого вводу: каркас
+        конструкції (redaktor.КАРКАСИ) або простий текст."""
         кнопки = []
-        for підпис, текст in ШВИДКІ_ВСТАВКИ:
+        for ключ in redaktor.КНОПКИ:
             кнопка = Button(
-                text=підпис, size_hint_x=None, font_size=sp(15),
-                width=max(dp(40), dp(11) * len(підпис) + dp(16)),
+                text=ключ, size_hint_x=None, font_size=sp(15),
+                width=max(dp(40), dp(11) * len(ключ) + dp(16)),
             )
-            кнопка.bind(on_release=lambda к, т=текст: self._вставити(т))
+            кнопка.bind(on_release=lambda к, кл=ключ: self._вставити(кл))
             кнопки.append(кнопка)
         return _прокручуваний_ряд(кнопки, висота=dp(44))
 
-    # ---- дії --------------------------------------------------------------
+    # ---- редагування -------------------------------------------------------
 
-    def _вставити(self, текст):
-        self.код.insert_text(текст)
+    def _вставити(self, ключ):
+        поле = self.код
+        if поле.selection_text:
+            поле.delete_selection()
+        if ключ in redaktor.КАРКАСИ:
+            вставка, поч, кін = redaktor.каркас(ключ, поле.text, поле.cursor_index())
+            поле.insert_text(вставка)
+        else:
+            поле.insert_text(redaktor.ПРОСТІ_ВСТАВКИ[ключ])
+            поч = кін = None
         # Дотик до кнопки знімає фокус із поля — повертаємо, щоб клавіатура
-        # не ховалась і курсор лишався на місці.
-        Clock.schedule_once(lambda dt: setattr(self.код, "focus", True), 0)
+        # не ховалась; курсор/виділення ставимо вже після повернення фокусу.
+        Clock.schedule_once(lambda dt: self._повернути_фокус(поч, кін), 0)
+
+    def _повернути_фокус(self, поч=None, кін=None):
+        поле = self.код
+        поле.focus = True
+        if поч is None:
+            return
+
+        def поставити(dt):
+            поле.cursor = поле.get_cursor_from_index(кін)
+            if поч != кін:
+                поле.select_text(поч, кін)
+
+        Clock.schedule_once(поставити, 0)
+
+    def _при_зміні_тексту(self, _інст, текст):
+        self._зберегти_код(текст)
+        self._сховати_пояснення()
+        self._запланувати_перевірку()
+
+    # ---- помилки -----------------------------------------------------------
+
+    def _запланувати_перевірку(self):
+        if self._перевірка is not None:
+            self._перевірка.cancel()
+        self._перевірка = Clock.schedule_once(self._перевірити, ЗАТРИМКА_ПЕРЕВІРКИ)
+
+    def _перевірити(self, *_):
+        self._перевірка = None
+        try:
+            результат = redaktor.перевірити(self.код.text)
+        except Exception:
+            результат = None
+        self._показати_помилку(результат)
+
+    def _показати_помилку(self, помилка):
+        """помилка — (рядок, пояснення) або None. Лише підкреслення;
+        пояснення чекає на дотик до рядка."""
+        self._помилка = помилка
+        self.код.рядок_помилки = помилка[0] if помилка else 0
+
+    def _при_дотику_до_рядка(self, номер):
+        if self._помилка is not None and номер == self._помилка[0]:
+            self.пояснення.text = f"Рядок {номер}. {self._помилка[1]}"
+            self.пояснення.texture_update()
+            self.пояснення.height = self.пояснення.texture_size[1] + dp(6)
+        else:
+            self._сховати_пояснення()
+
+    def _сховати_пояснення(self):
+        if self.пояснення.height:
+            self.пояснення.text = ""
+            self.пояснення.height = 0
+
+    # ---- виконання ----------------------------------------------------------
 
     def _виконати(self, *_):
         """Запускає програму в окремому потоці, щоб інтерфейс не завмирав
@@ -228,7 +413,7 @@ class МоваApp(App):
         if not текст.strip():
             текст = "(програма нічого не надрукувала)"
         # Kivy-віджети можна чіпати лише з головного потоку.
-        Clock.schedule_once(lambda dt: self._показати_результат(текст), 0)
+        Clock.schedule_once(lambda dt: self._показати_результат(текст, успіх), 0)
 
     def _запамʼятати_вм(self, вм):
         self._вм = вм
@@ -236,13 +421,17 @@ class МоваApp(App):
         if self._стоп_запитано:
             вм.зупинено = True
 
-    def _показати_результат(self, текст):
+    def _показати_результат(self, текст, успіх=True):
         self.вивід.text = текст
         self._вм = None
         self._потік = None
         self._стоп_запитано = False
         self._кн_виконати.disabled = False
         self._кн_стоп.disabled = True
+        if not успіх:
+            помилка = redaktor.помилка_з_виводу(текст)
+            if помилка is not None:
+                self._показати_помилку(помилка)
         Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 1), 0)
 
     def _стоп(self, *_):
@@ -255,7 +444,7 @@ class МоваApp(App):
 
     def _очистити_код(self, *_):
         self.код.text = ""
-        Clock.schedule_once(lambda dt: setattr(self.код, "focus", True), 0)
+        Clock.schedule_once(lambda dt: self._повернути_фокус(), 0)
 
     # ---- автозбереження ----------------------------------------------------
 
@@ -267,7 +456,7 @@ class МоваApp(App):
             pass
         return ПОЧАТКОВИЙ_КОД
 
-    def _зберегти_код(self, _інст, текст):
+    def _зберегти_код(self, текст):
         try:
             self._шлях_коду.parent.mkdir(parents=True, exist_ok=True)
             self._шлях_коду.write_text(текст, encoding="utf-8")

@@ -23,7 +23,7 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
-version = 0.5
+version = 0.6
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише
@@ -35,7 +35,7 @@ version = 0.5
 # нею найновіший Python (зараз 3.14), а той тягне *.whl, зібрані під
 # cp314 — pip їх відхиляє на етапі "Installing Python modules with pip"
 # ("... is not a supported wheel on this platform").
-requirements = python3,kivy==2.3.0
+requirements = python3,kivy==2.3.0,pygments
 
 # Зафіксовано конкретний реліз python-for-android (замість гілки
 # develop за замовчуванням) — v2024.01.21 ще збирає Python 3.11, а не
