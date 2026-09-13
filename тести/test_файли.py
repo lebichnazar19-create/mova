@@ -105,3 +105,35 @@ def test_zapusk_передає_теку(tmp_path):
     вивід, успіх = виконати_код('запиши_файл("з.txt", "apk")\nдрукуй(є_файл("з.txt"))', тека=str(tmp_path))
     assert успіх and вивід.strip() == "істина"
     assert (tmp_path / "з.txt").read_text(encoding="utf-8") == "apk"
+
+
+def test_рядки_файлу(tmp_path, capsys):
+    (tmp_path / "с.txt").write_text("а\nб\n\nв", encoding="utf-8")
+    вивід = запустити('друкуй(рядки_файлу("с.txt"), довжина(рядки_файлу("с.txt")))\n', tmp_path, capsys)
+    assert вивід.strip() == "[а, б, , в] 4"
+    with pytest.raises(ПомилкаВиконання):
+        запустити('рядки_файлу("нема.txt")\n', tmp_path, capsys)
+
+
+def test_файли_в_теці(tmp_path, capsys):
+    (tmp_path / "б.txt").write_text("1", encoding="utf-8")
+    (tmp_path / "а.txt").write_text("1", encoding="utf-8")
+    (tmp_path / "тека").mkdir()
+    вивід = запустити('друкуй(файли_в_теці(), файли_в_теці("тека"), файли_в_теці("."))\n', tmp_path, capsys)
+    assert вивід.strip() == "[а.txt, б.txt, тека] [] [а.txt, б.txt, тека]"
+    with pytest.raises(ПомилкаВиконання) as info:
+        запустити('файли_в_теці("нема")\n', tmp_path, capsys)
+    assert "Теку «нема» не знайдено" in str(info.value)
+
+
+def test_видали_файл(tmp_path, capsys):
+    (tmp_path / "в.txt").write_text("1", encoding="utf-8")
+    вивід = запустити('видали_файл("в.txt")\nдрукуй(є_файл("в.txt"))\n', tmp_path, capsys)
+    assert вивід.strip() == "хиба" and not (tmp_path / "в.txt").exists()
+    with pytest.raises(ПомилкаВиконання) as info:
+        запустити('видали_файл("в.txt")\n', tmp_path, capsys)
+    assert "не знайдено" in str(info.value)
+    (tmp_path / "тека").mkdir()
+    with pytest.raises(ПомилкаВиконання) as info:
+        запустити('видали_файл("тека")\n', tmp_path, capsys)
+    assert "це тека" in str(info.value)

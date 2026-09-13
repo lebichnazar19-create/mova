@@ -8,7 +8,9 @@
 автозберігається у user_data_dir/код.мова. Програма виконується в окремому
 потоці, «Стоп» виставляє ВМ.зупинено — див. zapusk.виконати_код.
 
-Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
+«питай("…")» у програмі показує під виводом рядок із запитом, полем
+вводу і кнопкою «Надіслати»; потік виконання чекає на відповідь (або на
+«Стоп»). Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
 помилок) живе в redaktor.py без Kivy і тестується на комп'ютері; тут —
 лише прив'язка до віджетів. Рядок з помилкою підкреслюється червоним;
 пояснення з'являється після дотику до цього рядка і зникає при наборі.
@@ -31,7 +33,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.6"
+ВЕРСІЯ = "0.7"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -46,6 +48,7 @@ from kivy.uix.codeinput import CodeInput
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.stencilview import StencilView
+from kivy.uix.textinput import TextInput
 
 import redaktor
 
@@ -251,6 +254,8 @@ class МоваApp(App):
         self._стоп_запитано = False
         self._помилка = None        # (рядок, пояснення) або None
         self._перевірка = None      # запланована перевірка коду (Clock event)
+        self._відповідь = None      # відповідь на «питай» з поля вводу
+        self._чекаю_відповідь = threading.Event()
         корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
 
         корінь.add_widget(self._панель_кнопок())
@@ -285,8 +290,65 @@ class МоваApp(App):
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
         корінь.add_widget(self._прокрутка_виводу)
+
+        корінь.add_widget(self._рядок_вводу())
         self._запланувати_перевірку()
         return корінь
+
+    def _рядок_вводу(self):
+        """Запит «питай» + поле вводу + «Надіслати». Висота 0 = сховано;
+        з'являється лише поки програма чекає на відповідь."""
+        self._ряд_вводу = BoxLayout(orientation="vertical", size_hint_y=None, height=0, spacing=dp(2))
+        self._запит = Label(
+            text="", size_hint_y=None, height=dp(22), halign="left", valign="middle",
+            font_size=sp(14), color=(0.2, 0.45, 0.2, 1),
+        )
+        self._запит.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
+        ряд = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(44), spacing=dp(4))
+        self._поле_вводу = TextInput(multiline=False, font_name=МОНО, font_size=sp(15))
+        self._поле_вводу.bind(on_text_validate=self._надіслати)
+        кнопка = Button(text="Надіслати", size_hint_x=None, width=dp(11) * 9 + dp(28))
+        кнопка.bind(on_release=self._надіслати)
+        ряд.add_widget(self._поле_вводу)
+        ряд.add_widget(кнопка)
+        self._ряд_вводу.add_widget(self._запит)
+        self._ряд_вводу.add_widget(ряд)
+        self._ряд_вводу.opacity = 0
+        return self._ряд_вводу
+
+    # ---- ввід для «питай» ---------------------------------------------------
+
+    def _питай(self, запит):
+        """Викликається з потоку виконання: показати поле, дочекатись
+        відповіді. «Стоп» під час очікування перериває програму."""
+        from yadro.vm import ВиконанняЗупинено
+
+        self._відповідь = None
+        self._чекаю_відповідь.clear()
+        Clock.schedule_once(lambda dt: self._показати_ввід(запит), 0)
+        while not self._чекаю_відповідь.wait(0.1):
+            if self._стоп_запитано:
+                Clock.schedule_once(lambda dt: self._сховати_ввід(), 0)
+                raise ВиконанняЗупинено()
+        return self._відповідь if self._відповідь is not None else ""
+
+    def _показати_ввід(self, запит):
+        self._запит.text = запит.strip() or "Введи значення:"
+        self._поле_вводу.text = ""
+        self._ряд_вводу.height = dp(22) + dp(44) + dp(2)
+        self._ряд_вводу.opacity = 1
+        self._поле_вводу.focus = True
+
+    def _сховати_ввід(self):
+        self._ряд_вводу.height = 0
+        self._ряд_вводу.opacity = 0
+        self._поле_вводу.focus = False
+
+    def _надіслати(self, *_):
+        if not self._чекаю_відповідь.is_set() and self._потік is not None:
+            self._відповідь = self._поле_вводу.text
+            self._сховати_ввід()
+            self._чекаю_відповідь.set()
 
     def _панель_кнопок(self):
         """Верхній ряд дій. Горизонтально прокручуваний: на вузькому екрані
@@ -406,7 +468,8 @@ class МоваApp(App):
         try:
             from zapusk import виконати_код
             текст, успіх = виконати_код(
-                код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir
+                код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
+                питай=self._питай,
             )
         except Exception:
             текст, успіх = "Внутрішня помилка:\n" + traceback.format_exc(), False
@@ -422,6 +485,7 @@ class МоваApp(App):
             вм.зупинено = True
 
     def _показати_результат(self, текст, успіх=True):
+        self._сховати_ввід()
         self.вивід.text = текст
         self._вм = None
         self._потік = None

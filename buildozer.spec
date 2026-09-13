@@ -23,7 +23,7 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
-version = 0.6
+version = 0.7
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише
