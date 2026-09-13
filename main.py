@@ -48,7 +48,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "1.1.1"
+ВЕРСІЯ = "1.1.2"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -156,6 +156,33 @@ class ПолеКоду(CodeInput):
                     self.cursor = self.get_cursor_from_index(новий_курсор)
                     return
         return super().insert_text(substring, from_undo)
+
+    # ---- гортання пальцем ----------------------------------------------------
+    # Kivy 2.3.0: у багаторядковому полі свайп рухає лише scroll_y, а
+    # get_max_scroll_x рахує ширину лише першого рядка. Тому вбік поле
+    # «гортав» тільки курсор, що виходив за край, а назад ліворуч —
+    # ніяк. Тут: свайп рухає і scroll_x, межа — за найдовшим рядком.
+
+    def _макс_scroll_x(self):
+        текст = self.text
+        if getattr(self, "_кеш_ширини_текст", None) != текст:
+            try:
+                ширина = max((self._get_row_width(i) for i in range(len(self._lines))), default=0)
+            except Exception:
+                ширина = 0
+            self._кеш_ширини_текст = текст
+            self._кеш_ширини = ширина
+        return max(0, self._кеш_ширини + self.padding[0] + self.padding[2] - self.width)
+
+    def get_max_scroll_x(self):
+        return self._макс_scroll_x()
+
+    def scroll_text_from_swipe(self, touch):
+        результат = super().scroll_text_from_swipe(touch)
+        if self.multiline and getattr(self, "_have_scrolled", False):
+            self.scroll_x = min(max(0, self.scroll_x - touch.dx), self._макс_scroll_x())
+            self._trigger_update_graphics()
+        return результат
 
     # ---- дотик ----------------------------------------------------------
 
