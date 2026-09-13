@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Точка входу Kivy-застосунку «Мова» для Android: редактор коду з запуском.
 
-Екран: панель кнопок («Виконати», «Очистити вивід»), поле коду
-(моноширинний шрифт), панель швидких вставок (дужки, лапки, ключові слова),
-знизу прокручуваний вивід. Код автозберігається у user_data_dir/код.мова.
+Екран: прокручувана панель кнопок («Виконати», «Стоп», «Очистити вивід»,
+«Очистити код»), поле коду (моноширинний шрифт), панель швидких вставок
+(дужки, лапки, ключові слова), знизу прокручуваний вивід. Код
+автозберігається у user_data_dir/код.мова. Програма виконується в окремому
+потоці, «Стоп» виставляє ВМ.зупинено — див. zapusk.виконати_код.
 
 Уся робота з yadro/* іде через zapusk.виконати_код (без Kivy, тестується на
 комп'ютері). Імпорти yadro/* не відбуваються на верхньому рівні: якщо щось
@@ -14,6 +16,7 @@
 
 import os
 import sys
+import threading
 import traceback
 from pathlib import Path
 
@@ -22,7 +25,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.3"
+ВЕРСІЯ = "0.4"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -103,6 +106,19 @@ def _прокручуваний_текст(текст="", шрифт=None, ро�
     return прокрутка, мітка
 
 
+def _прокручуваний_ряд(кнопки, висота):
+    """Горизонтально прокручуваний ряд віджетів фіксованої ширини."""
+    ряд = BoxLayout(size_hint=(None, 1), spacing=dp(4))
+    ряд.bind(minimum_width=ряд.setter("width"))
+    for к in кнопки:
+        ряд.add_widget(к)
+    прокрутка = ScrollView(
+        size_hint_y=None, height=висота, do_scroll_y=False, bar_width=0,
+    )
+    прокрутка.add_widget(ряд)
+    return прокрутка
+
+
 class МоваApp(App):
     title = "Мова"
 
@@ -124,12 +140,12 @@ class МоваApp(App):
 
     def _зібрати_редактор(self):
         self._шлях_коду = Path(self.user_data_dir) / ФАЙЛ_КОДУ
+        self._потік = None          # потік виконання (threading.Thread) або None
+        self._вм = None             # ВМ поточного запуску — для «Стоп»
+        self._стоп_запитано = False
         корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
 
-        кнопки = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
-        кнопки.add_widget(Button(text="Виконати", on_release=self._виконати))
-        кнопки.add_widget(Button(text="Очистити вивід", on_release=self._очистити))
-        корінь.add_widget(кнопки)
+        корінь.add_widget(self._панель_кнопок())
 
         self.код = TextInput(
             text=self._прочитати_код(), font_name=МОНО, font_size=sp(15),
@@ -147,23 +163,34 @@ class МоваApp(App):
         корінь.add_widget(self._прокрутка_виводу)
         return корінь
 
+    def _панель_кнопок(self):
+        """Верхній ряд дій. Горизонтально прокручуваний: на вузькому екрані
+        чотири кнопки в один ряд не вміщаються."""
+        self._кн_виконати = Button(text="Виконати", on_release=self._виконати)
+        self._кн_стоп = Button(text="Стоп", on_release=self._стоп, disabled=True)
+        кнопки = [
+            self._кн_виконати,
+            self._кн_стоп,
+            Button(text="Очистити вивід", on_release=self._очистити),
+            Button(text="Очистити код", on_release=self._очистити_код),
+        ]
+        for к in кнопки:
+            к.size_hint_x = None
+            к.width = dp(11) * len(к.text) + dp(28)
+        return _прокручуваний_ряд(кнопки, висота=dp(44))
+
     def _панель_вставок(self):
         """Горизонтально прокручуваний ряд кнопок, що вставляють текст у
         позицію курсора поля коду."""
-        ряд = BoxLayout(size_hint=(None, 1), spacing=dp(4))
-        ряд.bind(minimum_width=ряд.setter("width"))
+        кнопки = []
         for підпис, текст in ШВИДКІ_ВСТАВКИ:
             кнопка = Button(
                 text=підпис, size_hint_x=None, font_size=sp(15),
                 width=max(dp(40), dp(11) * len(підпис) + dp(16)),
             )
             кнопка.bind(on_release=lambda к, т=текст: self._вставити(т))
-            ряд.add_widget(кнопка)
-        прокрутка = ScrollView(
-            size_hint_y=None, height=dp(44), do_scroll_y=False, bar_width=0,
-        )
-        прокрутка.add_widget(ряд)
-        return прокрутка
+            кнопки.append(кнопка)
+        return _прокручуваний_ряд(кнопки, висота=dp(44))
 
     # ---- дії --------------------------------------------------------------
 
@@ -174,18 +201,57 @@ class МоваApp(App):
         Clock.schedule_once(lambda dt: setattr(self.код, "focus", True), 0)
 
     def _виконати(self, *_):
+        """Запускає програму в окремому потоці, щоб інтерфейс не завмирав
+        на довгих циклах і «спи», а кнопка «Стоп» лишалась живою."""
+        if self._потік is not None and self._потік.is_alive():
+            return
+        self._вм = None
+        self._кн_виконати.disabled = True
+        self._кн_стоп.disabled = False
+        self.вивід.text = "Виконується…"
+        код = self.код.text
+        self._потік = threading.Thread(
+            target=self._виконати_у_потоці, args=(код,), daemon=True
+        )
+        self._потік.start()
+
+    def _виконати_у_потоці(self, код):
         try:
             from zapusk import виконати_код
-            текст, успіх = виконати_код(self.код.text)
+            текст, успіх = виконати_код(код, при_старті=self._запамʼятати_вм)
         except Exception:
             текст, успіх = "Внутрішня помилка:\n" + traceback.format_exc(), False
         if not текст.strip():
             текст = "(програма нічого не надрукувала)"
+        # Kivy-віджети можна чіпати лише з головного потоку.
+        Clock.schedule_once(lambda dt: self._показати_результат(текст), 0)
+
+    def _запамʼятати_вм(self, вм):
+        self._вм = вм
+        # Якщо «Стоп» натиснули ще до того, як ВМ створилась, — не губимо.
+        if self._стоп_запитано:
+            вм.зупинено = True
+
+    def _показати_результат(self, текст):
         self.вивід.text = текст
+        self._вм = None
+        self._потік = None
+        self._стоп_запитано = False
+        self._кн_виконати.disabled = False
+        self._кн_стоп.disabled = True
         Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 1), 0)
+
+    def _стоп(self, *_):
+        self._стоп_запитано = True
+        if self._вм is not None:
+            self._вм.зупинено = True
 
     def _очистити(self, *_):
         self.вивід.text = ""
+
+    def _очистити_код(self, *_):
+        self.код.text = ""
+        Clock.schedule_once(lambda dt: setattr(self.код, "focus", True), 0)
 
     # ---- автозбереження ----------------------------------------------------
 
