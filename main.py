@@ -10,7 +10,11 @@
 
 «питай("…")» у програмі показує під виводом рядок із запитом, полем
 вводу і кнопкою «Надіслати»; потік виконання чекає на відповідь (або на
-«Стоп»). Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
+«Стоп»). «кнопка("Напис", дія)» додає кнопку під виводом; програма з
+кнопками після основного коду чекає натискань (zapusk._чекати_кнопок),
+доки «Стоп» або «Очистити вивід». «Довідка» друкує у вивід перелік слів
+і дій мови (yadro/dovidka.py). Поле коду гортається пальцем в обидва
+боки (scroll_from_swipe), номери рядків лишаються на місці. Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
 помилок) живе в redaktor.py без Kivy і тестується на комп'ютері; тут —
 лише прив'язка до віджетів. Рядок з помилкою підкреслюється червоним;
 пояснення з'являється після дотику до цього рядка і зникає при наборі.
@@ -33,7 +37,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.8"
+ВЕРСІЯ = "0.9"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -51,6 +55,7 @@ from kivy.uix.stencilview import StencilView
 from kivy.uix.textinput import TextInput
 
 import redaktor
+from yadro import dovidka
 
 # Вікно стискається над екранною клавіатурою, тож панель швидких кнопок
 # (одразу під полем коду) лишається видимою над клавіатурою.
@@ -256,6 +261,7 @@ class МоваApp(App):
         self._перевірка = None      # запланована перевірка коду (Clock event)
         self._відповідь = None      # відповідь на «питай» з поля вводу
         self._чекаю_відповідь = threading.Event()
+        self._вивід_очищено = False # «Очистити вивід» під час очікування кнопок
         корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
 
         корінь.add_widget(self._панель_кнопок())
@@ -264,7 +270,7 @@ class МоваApp(App):
             при_дотику=self._при_дотику_до_рядка,
             text=self._прочитати_код(), font_name=МОНО, font_size=sp(15),
             multiline=True, auto_indent=False, do_wrap=False,
-            style_name="default",
+            scroll_from_swipe=True, style_name="default",
         )
         if redaktor.МоваLexer is not None:
             self.код.lexer = redaktor.МоваLexer()
@@ -292,8 +298,44 @@ class МоваApp(App):
         корінь.add_widget(self._прокрутка_виводу)
 
         корінь.add_widget(self._рядок_вводу())
+        корінь.add_widget(self._ряд_кнопок_програми())
         self._запланувати_перевірку()
         return корінь
+
+    def _ряд_кнопок_програми(self):
+        """Кнопки, оголошені програмою через кнопка("Напис", дія). Ряд
+        горизонтально прокручуваний; висота 0, поки кнопок немає."""
+        self._кнопки_програми = BoxLayout(size_hint=(None, 1), spacing=dp(4))
+        self._кнопки_програми.bind(minimum_width=self._кнопки_програми.setter("width"))
+        self._прокрутка_кнопок = ScrollView(
+            size_hint_y=None, height=0, do_scroll_y=False, bar_width=0, opacity=0,
+        )
+        self._прокрутка_кнопок.add_widget(self._кнопки_програми)
+        return self._прокрутка_кнопок
+
+    def _додати_кнопку_програми(self, напис, натиснути):
+        """Викликається з потоку виконання — віджет створюємо в головному."""
+        def створити(dt):
+            кнопка = Button(
+                text=напис, size_hint_x=None, font_size=sp(15),
+                width=max(dp(60), dp(11) * len(напис) + dp(24)),
+            )
+            кнопка.bind(on_release=lambda к: натиснути())
+            self._кнопки_програми.add_widget(кнопка)
+            self._прокрутка_кнопок.height = dp(44)
+            self._прокрутка_кнопок.opacity = 1
+
+        Clock.schedule_once(створити, 0)
+
+    def _прибрати_кнопки_програми(self):
+        self._кнопки_програми.clear_widgets()
+        self._прокрутка_кнопок.height = 0
+        self._прокрутка_кнопок.opacity = 0
+
+    def _оновити_вивід(self, текст):
+        """З потоку виконання: показати накопичений вивід, поки програма
+        ще чекає натискань кнопок."""
+        Clock.schedule_once(lambda dt: setattr(self.вивід, "text", текст), 0)
 
     def _рядок_вводу(self):
         """Запит «питай» + поле вводу + «Надіслати». Висота 0 = сховано;
@@ -360,6 +402,7 @@ class МоваApp(App):
             self._кн_стоп,
             Button(text="Очистити вивід", on_release=self._очистити),
             Button(text="Очистити код", on_release=self._очистити_код),
+            Button(text="Довідка", on_release=self._довідка),
         ]
         for к in кнопки:
             к.size_hint_x = None
@@ -455,6 +498,8 @@ class МоваApp(App):
         if self._потік is not None and self._потік.is_alive():
             return
         self._вм = None
+        self._вивід_очищено = False
+        self._прибрати_кнопки_програми()
         self._кн_виконати.disabled = True
         self._кн_стоп.disabled = False
         self.вивід.text = "Виконується…"
@@ -469,7 +514,8 @@ class МоваApp(App):
             from zapusk import виконати_код
             текст, успіх = виконати_код(
                 код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
-                питай=self._питай,
+                питай=self._питай, кнопка=self._додати_кнопку_програми,
+                оновити_вивід=self._оновити_вивід,
             )
         except Exception:
             текст, успіх = "Внутрішня помилка:\n" + traceback.format_exc(), False
@@ -486,7 +532,10 @@ class МоваApp(App):
 
     def _показати_результат(self, текст, успіх=True):
         self._сховати_ввід()
-        self.вивід.text = текст
+        self._прибрати_кнопки_програми()
+        # «Очистити вивід» під час очікування кнопок завершує програму —
+        # її прощальне «Виконання зупинено.» уже нікому не потрібне
+        self.вивід.text = "" if self._вивід_очищено else текст
         self._вм = None
         self._потік = None
         self._стоп_запитано = False
@@ -505,6 +554,16 @@ class МоваApp(App):
 
     def _очистити(self, *_):
         self.вивід.text = ""
+        if self._кнопки_програми.children:
+            # кнопки живуть до «Очистити вивід»: прибираємо їх і завершуємо
+            # програму, що на них чекала
+            self._вивід_очищено = True
+            self._прибрати_кнопки_програми()
+            self._стоп()
+
+    def _довідка(self, *_):
+        self.вивід.text = dovidka.текст_довідки()
+        Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 1), 0)
 
     def _очистити_код(self, *_):
         self.код.text = ""

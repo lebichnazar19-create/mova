@@ -11,6 +11,7 @@ stdin, тож замість зависання чи EOFError показуємо
 """
 
 import io
+import queue
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
 
@@ -23,7 +24,7 @@ from contextlib import redirect_stderr, redirect_stdout
 ПОВІДОМЛЕННЯ_ЗУПИНЕНО = "Виконання зупинено."
 
 
-def виконати_код(текст, при_старті=None, тека=None, питай=None):
+def виконати_код(текст, при_старті=None, тека=None, питай=None, кнопка=None, оновити_вивід=None):
     """Компілює й виконує текст програми. Повертає (вивід, успіх).
 
     `тека` — база для відносних шляхів у файлових функціях мови
@@ -44,6 +45,7 @@ def виконати_код(текст, при_старті=None, тека=None,
     програми — так викликач (main.py) отримує ВМ і може зупинити її
     (`вм.зупинено = True`) з іншого потоку."""
     буфер = io.StringIO()
+    черга = queue.Queue()
     try:
         from yadro.errors import ПомилкаМови
         from yadro.kompilyator import компілювати
@@ -53,10 +55,16 @@ def виконати_код(текст, при_старті=None, тека=None,
         байткод = компілювати(парсити_текст(текст))
         вм = ВМ(без_пристрою=True, тека_файлів=тека)
         вм._native["питай"] = _обгорнути_питай(питай) if питай is not None else _питай_недоступно
+        if кнопка is not None:
+            def при_кнопці(напис, імя_дії):
+                кнопка(напис, lambda: черга.put(імя_дії))
+            вм.при_кнопці = при_кнопці
         if при_старті is not None:
             при_старті(вм)
         with redirect_stdout(буфер), redirect_stderr(буфер):
             вм.виконати(байткод)
+            if кнопка is not None and вм.кнопки:
+                _чекати_кнопок(вм, черга, буфер, оновити_вивід)
         return буфер.getvalue(), True
     except Exception as e:
         вивід = буфер.getvalue()
@@ -76,6 +84,24 @@ def виконати_код(текст, при_старті=None, тека=None,
         else:
             вивід += "Внутрішня помилка:\n" + traceback.format_exc()
         return вивід, False
+
+
+def _чекати_кнопок(вм, черга, буфер, оновити_вивід):
+    """Основний код виконано, кнопки є: чекати натискань, поки не «Стоп»."""
+    from yadro.vm import ВиконанняЗупинено
+
+    if оновити_вивід is not None:
+        оновити_вивід(буфер.getvalue())
+    while True:
+        if вм.зупинено:
+            raise ВиконанняЗупинено()
+        try:
+            імя_дії = черга.get(timeout=0.1)
+        except queue.Empty:
+            continue
+        вм.викликати_дію(імя_дії)
+        if оновити_вивід is not None:
+            оновити_вивід(буфер.getvalue())
 
 
 def _питай_недоступно(*args):
