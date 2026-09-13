@@ -781,6 +781,10 @@ class ВМ:
         return i
 
     def _індекс_get(self, колекція, idx):
+        if isinstance(колекція, Точка):
+            if idx in (0, 1, -1, -2):
+                return колекція[idx]
+            self._помилка("У Точки є лише т[0] (x) і т[1] (y).")
         if isinstance(колекція, (list, str)):
             if not isinstance(idx, int) or isinstance(idx, bool):
                 self._помилка("Індекс має бути цілим числом.")
@@ -795,6 +799,8 @@ class ВМ:
         self._помилка(f"Не можна індексувати значення типу «{_тип_укр(колекція)}».")
 
     def _індекс_set(self, колекція, idx, значення):
+        if isinstance(колекція, Точка):
+            self._помилка("Точка незмінна: замість «т[0] = …» створи нову Точка(x, y).")
         if isinstance(колекція, list):
             if not isinstance(idx, int) or isinstance(idx, bool):
                 self._помилка("Індекс має бути цілим числом.")

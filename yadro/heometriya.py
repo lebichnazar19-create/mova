@@ -52,11 +52,33 @@ class Точка:
         )
 
     def __eq__(self, інша):
+        # список [x, y] теж вважається тією самою точкою — креслення й ескіз
+        # історично працювали зі списками, і старі програми/тести їх порівнюють
+        if isinstance(інша, (list, tuple)) and len(інша) == 2:
+            try:
+                інша = Точка(інша[0], інша[1])
+            except ПомилкаВиконання:
+                return False
         return (
             isinstance(інша, Точка)
             and abs(self.x - інша.x) <= ДОПУСК
             and abs(self.y - інша.y) <= ДОПУСК
         )
+
+    def __getitem__(self, i):
+        """т[0] / т[1] — як у списку [x, y] (сумісність зі старими програмами)."""
+        if i in (0, -2):
+            return self.x
+        if i in (1, -1):
+            return self.y
+        raise ПомилкаВиконання(f"У Точки є лише т[0] (x) і т[1] (y), індексу {i} немає.")
+
+    def __len__(self):
+        return 2
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
 
     def __hash__(self):
         return hash((round(self.x, 9), round(self.y, 9)))
@@ -90,6 +112,20 @@ class Точка:
 
 def є_точка(x):
     return isinstance(x, Точка)
+
+
+def xy(значення, назва="точка"):
+    """(x, y) з Точки або списку [x, y] — для креслення/ескізу, які приймають
+    обидві форми. Інакше — ПомилкаВиконання з поясненням."""
+    if isinstance(значення, Точка):
+        return значення.x, значення.y
+    if isinstance(значення, (list, tuple)) and len(значення) == 2:
+        x, y = значення
+        for к in (x, y):
+            if isinstance(к, bool) or not isinstance(к, (int, float)):
+                raise ПомилкаВиконання(f"«{назва}» має бути Точкою або списком [x, y] з чисел.")
+        return x, y
+    raise ПомилкаВиконання(f"«{назва}» має бути Точкою (Точка(x, y)) або списком [x, y], а не {_тип(значення)}.")
 
 
 def _точка(x, дія, що="точку"):

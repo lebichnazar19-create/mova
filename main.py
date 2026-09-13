@@ -13,7 +13,12 @@
 «Стоп»). «кнопка("Напис", дія)» додає кнопку під виводом; програма з
 кнопками після основного коду чекає натискань (zapusk._чекати_кнопок),
 доки «Стоп» або «Очистити вивід». «Довідка» друкує у вивід перелік слів
-і дій мови (yadro/dovidka.py). Поле коду гортається пальцем в обидва
+і дій мови (yadro/dovidka.py). «Креслення» перемикає нижню частину
+екрана між виводом і полотном (ПолотноКреслення): усе, що програма
+накреслила через аркуш()/контур()/розмір()/..., малюється з
+yadro.drafting.для_екрана(); гортання пальцем, масштаб двома пальцями
+(Scatter), «Вмістити все». «Зберегти»/«Відкрити» — програми у теці
+застосунку/програми (redaktor.список_програм тощо). Поле коду гортається пальцем в обидва
 боки (scroll_from_swipe), номери рядків лишаються на місці. Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
 помилок) живе в redaktor.py без Kivy і тестується на комп'ютері; тут —
 лише прив'язка до віджетів. Рядок з помилкою підкреслюється червоним;
@@ -37,22 +42,24 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.9"
+ВЕРСІЯ = "1.0"
 
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.core.window import Window
-from kivy.graphics import Color, Line
+from kivy.graphics import Color, Line, PopMatrix, PushMatrix, Rectangle, Rotate, Triangle
 from kivy.metrics import dp, sp
 from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.codeinput import CodeInput
 from kivy.uix.label import Label
+from kivy.uix.scatter import Scatter
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.stencilview import StencilView
 from kivy.uix.textinput import TextInput
+from kivy.uix.widget import Widget
 
 import redaktor
 from yadro import dovidka
@@ -233,6 +240,94 @@ class НомериРядків(StencilView):
         self.мітка.top = поле.top - поле.padding[1] + поле.scroll_y
 
 
+ПІКСЕЛІВ_НА_ММ = 3.0  # базовий масштаб полотна до зуму пальцями
+
+
+class ПолотноКреслення(StencilView):
+    """Полотно, на якому малюється креслення з drafting.для_екрана().
+    Усередині — Scatter (гортання одним пальцем, масштаб двома) з
+    віджетом-аркушем, координати якого — мм × ПІКСЕЛІВ_НА_ММ, Y вгору."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.креслення = None
+        self.scatter = Scatter(do_rotation=False, do_translation=True, do_scale=True,
+                               scale_min=0.05, scale_max=40, size_hint=(None, None))
+        self.аркуш = Widget(size_hint=(None, None))
+        self.scatter.add_widget(self.аркуш)
+        self.add_widget(self.scatter)
+        self.bind(size=lambda *_: self.вмістити())
+
+    def показати(self, креслення):
+        self.креслення = креслення
+        self._перемалювати()
+        self.вмістити()
+
+    def вмістити(self):
+        """«Вмістити все»: масштаб і положення, щоб аркуш ліг у полотно."""
+        if self.креслення is None or self.width <= 0 or self.height <= 0:
+            return
+        ш = self.креслення["ширина"] * ПІКСЕЛІВ_НА_ММ
+        в = self.креслення["висота"] * ПІКСЕЛІВ_НА_ММ
+        масштаб = min((self.width - dp(12)) / ш, (self.height - dp(12)) / в)
+        self.scatter.scale = max(0.05, масштаб)
+        self.scatter.pos = (
+            self.x + (self.width - ш * self.scatter.scale) / 2,
+            self.y + (self.height - в * self.scatter.scale) / 2,
+        )
+
+    def _колір(self, hex_):
+        hex_ = hex_.lstrip("#")
+        return tuple(int(hex_[i:i + 2], 16) / 255 for i in (0, 2, 4)) + (1,)
+
+    def _перемалювати(self):
+        к = self.креслення
+        м = ПІКСЕЛІВ_НА_ММ
+        полотно = self.аркуш.canvas
+        полотно.clear()
+        if к is None:
+            return
+        ш, в = к["ширина"] * м, к["висота"] * м
+        self.аркуш.size = (ш, в)
+        self.scatter.size = (ш, в)
+        with полотно:
+            Color(*self._колір(к["фон"]))
+            Rectangle(pos=(0, 0), size=(ш, в))
+            Color(*self._колір(к["лінії"]))
+            for ф in к["фігури"]:
+                тип = ф["тип"]
+                if тип == "лінія":
+                    товщина = max(1.0, ф["товщина"] * м)
+                    if ф.get("штрих"):
+                        Line(points=[к_ * м for к_ in ф["точки"]], width=1,
+                             dash_length=max(2.0, ф["штрих"][0] * м), dash_offset=max(2.0, ф["штрих"][1] * м))
+                    else:
+                        Line(points=[к_ * м for к_ in ф["точки"]], width=товщина)
+                elif тип == "ламана":
+                    Line(points=[к_ * м for к_ in ф["точки"]], width=max(1.0, ф["товщина"] * м),
+                         close=ф.get("замкнена", False), joint="miter")
+                elif тип == "прямокутник":
+                    Line(rectangle=(ф["x"] * м, ф["y"] * м, ф["ш"] * м, ф["в"] * м),
+                         width=max(1.0, ф["товщина"] * м))
+                elif тип == "трикутник":
+                    Triangle(points=[к_ * м for к_ in ф["точки"]])
+                elif тип == "дуга":
+                    # Kivy: кут 0 — угорі, за годинниковою; у фігурі — від осі x проти годинникової
+                    a, b = 90 - max(ф["від"], ф["до"]), 90 - min(ф["від"], ф["до"])
+                    Line(circle=(ф["cx"] * м, ф["cy"] * м, ф["r"] * м, a, b),
+                         width=max(1.0, ф["товщина"] * м))
+                elif тип == "текст":
+                    мітка = CoreLabel(text=ф["текст"], font_size=max(6, ф["розмір"] * м), font_name=МОНО)
+                    мітка.refresh()
+                    т = мітка.texture
+                    x, y = ф["x"] * м, ф["y"] * м
+                    зсув_x = -т.width / 2 if ф.get("вирівнювання") == "середина" else 0
+                    PushMatrix()
+                    Rotate(angle=ф.get("кут", 0), origin=(x, y))
+                    Rectangle(texture=т, pos=(x + зсув_x, y - т.height / 2), size=т.size)
+                    PopMatrix()
+
+
 class МоваApp(App):
     title = "Мова"
 
@@ -262,6 +357,8 @@ class МоваApp(App):
         self._відповідь = None      # відповідь на «питай» з поля вводу
         self._чекаю_відповідь = threading.Event()
         self._вивід_очищено = False # «Очистити вивід» під час очікування кнопок
+        self._показано_креслення = False
+        self._останнє_креслення = None
         корінь = BoxLayout(orientation="vertical", padding=dp(6), spacing=dp(4))
 
         корінь.add_widget(self._панель_кнопок())
@@ -295,7 +392,17 @@ class МоваApp(App):
         self._прокрутка_виводу, self.вивід = _прокручуваний_текст(
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
-        корінь.add_widget(self._прокрутка_виводу)
+        # нижня частина: або вивід, або полотно креслення
+        self._низ = BoxLayout(orientation="vertical")
+        self._низ.add_widget(self._прокрутка_виводу)
+        self._полотно = ПолотноКреслення()
+        self._панель_креслення = BoxLayout(orientation="vertical")
+        ряд = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(4))
+        ряд.add_widget(Button(text="Вмістити все", on_release=lambda *_: self._полотно.вмістити()))
+        ряд.add_widget(Button(text="До виводу", on_release=lambda *_: self._показати_креслення(False)))
+        self._панель_креслення.add_widget(ряд)
+        self._панель_креслення.add_widget(self._полотно)
+        корінь.add_widget(self._низ)
 
         корінь.add_widget(self._рядок_вводу())
         корінь.add_widget(self._ряд_кнопок_програми())
@@ -367,14 +474,20 @@ class МоваApp(App):
 
         self._відповідь = None
         self._чекаю_відповідь.clear()
-        Clock.schedule_once(lambda dt: self._показати_ввід(запит), 0)
+
+        def відповісти(текст):
+            self._відповідь = текст
+            self._чекаю_відповідь.set()
+
+        Clock.schedule_once(lambda dt: self._показати_ввід(запит, відповісти), 0)
         while not self._чекаю_відповідь.wait(0.1):
             if self._стоп_запитано:
                 Clock.schedule_once(lambda dt: self._сховати_ввід(), 0)
                 raise ВиконанняЗупинено()
         return self._відповідь if self._відповідь is not None else ""
 
-    def _показати_ввід(self, запит):
+    def _показати_ввід(self, запит, при_відповіді=None):
+        self._при_відповіді = при_відповіді
         self._запит.text = запит.strip() or "Введи значення:"
         self._поле_вводу.text = ""
         self._ряд_вводу.height = dp(22) + dp(44) + dp(2)
@@ -387,10 +500,13 @@ class МоваApp(App):
         self._поле_вводу.focus = False
 
     def _надіслати(self, *_):
-        if not self._чекаю_відповідь.is_set() and self._потік is not None:
-            self._відповідь = self._поле_вводу.text
-            self._сховати_ввід()
-            self._чекаю_відповідь.set()
+        обробник = getattr(self, "_при_відповіді", None)
+        if обробник is None:
+            return
+        текст = self._поле_вводу.text
+        self._при_відповіді = None
+        self._сховати_ввід()
+        обробник(текст)
 
     def _панель_кнопок(self):
         """Верхній ряд дій. Горизонтально прокручуваний: на вузькому екрані
@@ -402,6 +518,9 @@ class МоваApp(App):
             self._кн_стоп,
             Button(text="Очистити вивід", on_release=self._очистити),
             Button(text="Очистити код", on_release=self._очистити_код),
+            Button(text="Креслення", on_release=lambda *_: self._показати_креслення(not self._показано_креслення)),
+            Button(text="Зберегти", on_release=self._зберегти),
+            Button(text="Відкрити", on_release=self._відкрити),
             Button(text="Довідка", on_release=self._довідка),
         ]
         for к in кнопки:
@@ -515,7 +634,7 @@ class МоваApp(App):
             текст, успіх = виконати_код(
                 код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
                 питай=self._питай, кнопка=self._додати_кнопку_програми,
-                оновити_вивід=self._оновити_вивід,
+                оновити_вивід=self._оновити_вивід, при_кресленні=self._при_кресленні,
             )
         except Exception:
             текст, успіх = "Внутрішня помилка:\n" + traceback.format_exc(), False
@@ -546,6 +665,63 @@ class МоваApp(App):
             if помилка is not None:
                 self._показати_помилку(помилка)
         Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 1), 0)
+
+    # ---- креслення -----------------------------------------------------------
+
+    def _при_кресленні(self, креслення):
+        """З потоку виконання: програма щось накреслила — показати полотно."""
+        def показати(dt):
+            self._останнє_креслення = креслення
+            self._полотно.показати(креслення)
+            self._показати_креслення(True)
+
+        Clock.schedule_once(показати, 0)
+
+    def _показати_креслення(self, так):
+        if так and self._останнє_креслення is None:
+            self.вивід.text = "Креслення ще немає: запусти програму з аркуш(...), контур(...), розмір(...)."
+            return
+        if так == self._показано_креслення:
+            return
+        self._показано_креслення = так
+        self._низ.clear_widgets()
+        self._низ.add_widget(self._панель_креслення if так else self._прокрутка_виводу)
+        if так:
+            Clock.schedule_once(lambda dt: self._полотно.вмістити(), 0)
+
+    # ---- збереження програм ------------------------------------------------------
+
+    def _зберегти(self, *_):
+        self._показати_ввід("Назва програми для збереження:", self._зберегти_під_назвою)
+
+    def _зберегти_під_назвою(self, назва):
+        ім_я = redaktor.зберегти_програму(self.user_data_dir, назва, self.код.text)
+        self._показати_креслення(False)
+        if ім_я is None:
+            self.вивід.text = "Не збережено: порожня або непридатна назва."
+        else:
+            self.вивід.text = f"Збережено як {ім_я} (тека {redaktor.ТЕКА_ПРОГРАМ}/)."
+
+    def _відкрити(self, *_):
+        назви = redaktor.список_програм(self.user_data_dir)
+        self._показати_креслення(False)
+        self._прибрати_кнопки_програми()
+        if not назви:
+            self.вивід.text = "Збережених програм ще немає — натисни «Зберегти»."
+            return
+        self.вивід.text = "Мої програми — торкнись назви внизу, щоб відкрити:\n" + "\n".join(назви)
+        for назва in назви:
+            self._додати_кнопку_програми(назва, lambda н=назва: Clock.schedule_once(lambda dt: self._відкрити_програму(н), 0))
+
+    def _відкрити_програму(self, назва):
+        текст = redaktor.прочитати_програму(self.user_data_dir, назва)
+        self._прибрати_кнопки_програми()
+        if текст is None:
+            self.вивід.text = f"Програму «{назва}» не знайдено."
+            return
+        self.код.text = текст
+        self.вивід.text = f"Відкрито «{назва}»."
+        Clock.schedule_once(lambda dt: self._повернути_фокус(), 0)
 
     def _стоп(self, *_):
         self._стоп_запитано = True
