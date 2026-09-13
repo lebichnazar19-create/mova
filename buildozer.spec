@@ -20,10 +20,10 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 
 # Не тягнути в APK нічого зайвого: git-метадані, кеші тестів, байткод,
 # готові білди Buildozer з попередніх запусків.
-source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin
+source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,agent,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
-version = 1.2.1
+version = 1.3
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише
@@ -67,6 +67,16 @@ android.api = 34
 # p4a is: 25b" — з логу збірки; попередня спроба поставити 23b була
 # хибним припущенням, не підтвердженим реальним білдом).
 android.ndk = 25b
+
+# ---- зв'язок з платами по USB (yadro/plata.py, етап 1: пульт) ----
+# usb-serial-for-android (CH340, CP2102, FTDI, CDC-ACM) — з jitpack
+android.gradle_dependencies = com.github.mik3y:usb-serial-for-android:3.7.0
+android.add_gradle_repositories = maven { url 'https://jitpack.io' }
+# intent-filter USB_DEVICE_ATTACHED + device_filter.xml + uses-feature usb.host
+android.manifest.intent_filters = android/intent_filters.xml
+android.add_resources = android/xml:xml
+android.extra_manifest_xml = android/extra_manifest.xml
+android.permissions = INTERNET
 
 log_level = 2
 warn_on_root = 1

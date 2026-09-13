@@ -1,0 +1,3 @@
+<!-- Вставляється в <manifest> (buildozer: android.extra_manifest_xml):
+     застосунок працює як USB-хост (OTG), не обов'язково для встановлення. -->
+<uses-feature android:name="android.hardware.usb.host" android:required="false" />

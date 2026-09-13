@@ -51,7 +51,7 @@ if str(сюди) not in sys.path:
 # екрані — «${мова}» (title там само): «мова» у фігурних дужках зі знаком
 # долара — натяк, що це мова програмування на телефоні. Ім'я пакета
 # (package.name = mova), репозиторій, тека й ключові слова — без змін.
-ВЕРСІЯ = "1.2.1"
+ВЕРСІЯ = "1.3"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -454,6 +454,7 @@ class МоваApp(App):
             Button(text="Відкрити", on_release=self._відкрити),
             Button(text="Зробити застосунок", on_release=self._зробити_застосунок),
             Button(text="Налаштування", on_release=self._налаштування),
+            Button(text="Плата", on_release=self._плата),
             Button(text="Довідка", on_release=self._довідка),
         ]
         панель = StackLayout(orientation="lr-tb", size_hint_y=None, spacing=(dp(4), dp(4)))
@@ -756,6 +757,65 @@ class МоваApp(App):
             github.зберегти_налаштування(self.user_data_dir, репо=репо)
             self.вивід.text += f"\nРепозиторій: {репо.strip()}."
         self.вивід.text += "\nГотово. «Зробити застосунок» тепер надсилатиме програму в GitHub."
+
+    # ---- плата (yadro/plata.py) ---------------------------------------------------
+
+    def _плата(self, *_):
+        """«Плата»: список знайдених плат (кнопки — підключитись), стан
+        підключення, «Перевірити» (блимає вбудованим світлодіодом)."""
+        from yadro import plata
+
+        self._показати_креслення(False)
+        self._прибрати_кнопки_програми()
+        self.вивід.text = "Шукаю плати…"
+
+        def шукати():
+            try:
+                назви = plata.плати()
+                стан = plata.підключено()
+                помилка = None
+            except Exception as e:
+                назви, стан, помилка = [], None, str(e)
+            Clock.schedule_once(lambda dt: показати(назви, стан, помилка), 0)
+
+        def показати(назви, стан, помилка):
+            рядки = ["Плати:"] + [f"  • {н}" for н in назви] if назви else ["Плат не знайдено."]
+            if помилка:
+                рядки.append(f"Помилка пошуку: {помилка}")
+            рядки.append(f"Підключено: {стан or 'нічого'}")
+            рядки.append("Торкнись назви внизу, щоб підключитись; «Перевірити» блимає світлодіодом.")
+            self.вивід.text = "\n".join(рядки)
+            for н in назви:
+                self._додати_кнопку_програми(н, lambda н=н: threading.Thread(target=self._підключити_плату, args=(н,), daemon=True).start())
+            self._додати_кнопку_програми("Перевірити", lambda: threading.Thread(target=self._перевірити_плату, daemon=True).start())
+            self._додати_кнопку_програми("Відключитись", lambda: threading.Thread(target=self._відключити_плату, daemon=True).start())
+
+        threading.Thread(target=шукати, daemon=True).start()
+
+    def _повідомити(self, текст):
+        Clock.schedule_once(lambda dt: setattr(self.вивід, "text", текст), 0)
+
+    def _підключити_плату(self, назва):
+        from yadro import plata
+        try:
+            self._повідомити(f"Підключено: {plata.підключись(назва)}")
+        except Exception as e:
+            self._повідомити(f"Не підключено: {e}")
+
+    def _перевірити_плату(self):
+        from yadro import plata
+        try:
+            if plata.підключено() is None:
+                plata.підключись("USB")
+            plata.перевірити(3)
+            self._повідомити(f"Плата «{plata.підключено()}» відповідає — світлодіод блимнув 3 рази.")
+        except Exception as e:
+            self._повідомити(f"Перевірка не вдалась: {e}")
+
+    def _відключити_плату(self):
+        from yadro import plata
+        plata.відключись()
+        self._повідомити("Плату відключено.")
 
     def _стоп(self, *_):
         self._стоп_запитано = True

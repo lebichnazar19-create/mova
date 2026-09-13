@@ -11,7 +11,7 @@ VM отримує вже готовий байткод (dict з ключами "
 import copy
 import time
 
-from . import chas, ekran, heometriya, mashyna, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
+from . import chas, ekran, heometriya, mashyna, plata, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
 from .heometriya import Точка
 from .natives import (
     ПРИСТРІЙ as _ІМЕНА_ПРИСТРІЙ,
@@ -24,6 +24,7 @@ from .natives import (
     РЯДКИ as _ІМЕНА_РЯДКИ,
     ЧАС as _ІМЕНА_ЧАС,
     ГЕОМЕТРІЯ as _ІМЕНА_ГЕОМЕТРІЯ,
+    ПЛАТА as _ІМЕНА_ПЛАТА,
 )
 from .errors import ПомилкаВиконання
 
@@ -160,6 +161,8 @@ class ВМ:
             self._native[ім_я] = getattr(matematyka, ім_я)
         for ім_я in _ІМЕНА_ЧАС:
             self._native[ім_я] = getattr(chas, ім_я)
+        for ім_я in _ІМЕНА_ПЛАТА:
+            self._native[ім_я] = getattr(plata, ім_я)
         for ім_я in _ІМЕНА_ГЕОМЕТРІЯ:
             if ім_я in ("кут", "зсунь"):
                 continue  # об'єднуються з drafting.кут / sketch.зсунь нижче, за арністю
@@ -454,7 +457,7 @@ class ВМ:
 
     def виконати(self, байткод):
         """Виконати самостійну програму «з нуля» — скидає весь стан VM."""
-        self.глобальні.setdefault("ПІ", matematyka.ПІ)
+        self._вбудовані_сталі()
         self.код = байткод["код"]
         self.константи = байткод.get("константи", [])
         self.позиції = байткод.get("позиції", [])
@@ -489,7 +492,7 @@ class ВМ:
         позиції = байткод.get("позиції") or [[0, 0, ""]] * len(новий_код)
         self.позиції.extend(позиції)
 
-        self.глобальні.setdefault("ПІ", matematyka.ПІ)
+        self._вбудовані_сталі()
         self.pc = зсув_коду
         self._цикл_виконання()
 
@@ -515,6 +518,11 @@ class ВМ:
         # тіло дії завжди завершується RETURN — сюди не доходимо
         self.pc = старий_pc
         return None
+
+    def _вбудовані_сталі(self):
+        self.глобальні.setdefault("ПІ", matematyka.ПІ)
+        for режим in plata.РЕЖИМ:            # вихід / вхід / вхід_підтяжка для пін()
+            self.глобальні.setdefault(режим, режим)
 
     def _цикл_виконання(self):
         довжина_коду = len(self.код)

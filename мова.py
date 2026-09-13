@@ -164,6 +164,10 @@ def main(argv=None):
     argv = list(argv if argv is not None else sys.argv[1:])
     без_пристрою = "--без-пристрою" in argv
     if без_пристрою:
+        # плати теж симулюються: підключись("USB") іде в агент у пам'яті
+        from yadro import plata
+        plata.увімкнути_симуляцію(True)
+    if без_пристрою:
         argv.remove("--без-пристрою")
 
     if argv and argv[0] in ("--допомога", "-h", "--help"):
