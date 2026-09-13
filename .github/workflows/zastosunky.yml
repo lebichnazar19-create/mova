@@ -1,0 +1,115 @@
+name: Застосунки з програм
+
+# Кожна тека в застосунки/ — окремий Android-застосунок (програма.мова +
+# main.py-запускач + buildozer.spec + icon.png, згенеровані zastosunky.py).
+# Ядро мови (yadro/, zapusk.py, vidzhety.py) докладається сюди перед
+# збіркою, щоб у репозиторії воно лишалось в одному місці. Артефакт
+# зветься так само, як програма.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "застосунки/**"
+      - "yadro/**"
+      - "zapusk.py"
+      - "vidzhety.py"
+      - ".github/workflows/zastosunky.yml"
+  workflow_dispatch: {}
+
+jobs:
+  список:
+    name: Які застосунки збирати
+    runs-on: ubuntu-22.04
+    outputs:
+      застосунки: ${{ steps.знайти.outputs.список }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: знайти
+        run: |
+          список=$(python3 - <<'PY'
+          import json, pathlib
+          т = pathlib.Path("застосунки")
+          print(json.dumps(sorted(п.name for п in т.iterdir() if п.is_dir() and (п / "програма.мова").is_file()) if т.is_dir() else [], ensure_ascii=False))
+          PY
+          )
+          echo "список=$список" >> "$GITHUB_OUTPUT"
+          echo "Застосунки: $список"
+
+  збірка:
+    name: APK «${{ matrix.застосунок }}»
+    needs: список
+    if: needs.список.outputs.застосунки != '[]'
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        застосунок: ${{ fromJSON(needs.список.outputs.застосунки) }}
+    env:
+      ЗАСТОСУНОК: ${{ matrix.застосунок }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Системні пакети для python-for-android
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip autoconf libtool pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev \
+            build-essential ccache \
+            libtool-bin libltdl-dev automake m4
+
+      - name: Buildozer + Cython
+        run: pip install buildozer cython
+
+      - name: Кеш Buildozer і Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            ~/.gradle
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Докласти ядро мови до застосунку
+        run: |
+          cp -r yadro zapusk.py vidzhety.py "застосунки/$ЗАСТОСУНОК/"
+          ls -la "застосунки/$ЗАСТОСУНОК"
+
+      - name: Прийняти ліцензії Android SDK
+        working-directory: застосунки/${{ matrix.застосунок }}
+        run: |
+          set -e
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          if [ ! -d "$SDK_DIR" ]; then
+            buildozer -v android debug || true
+          fi
+          SDKMANAGER=$(find "$SDK_DIR" -type f -name sdkmanager 2>/dev/null | head -n1)
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager не знайдено в $SDK_DIR" >&2
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
+
+      - name: Зібрати APK
+        working-directory: застосунки/${{ matrix.застосунок }}
+        run: buildozer -v android debug
+
+      - name: Завантажити APK в Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.застосунок }}
+          path: застосунки/${{ matrix.застосунок }}/bin/*.apk
+          if-no-files-found: error

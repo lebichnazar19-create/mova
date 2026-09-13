@@ -20,10 +20,10 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 
 # Не тягнути в APK нічого зайвого: git-метадані, кеші тестів, байткод,
 # готові білди Buildozer з попередніх запусків.
-source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,.buildozer,bin
+source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
-version = 1.0
+version = 1.1
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише

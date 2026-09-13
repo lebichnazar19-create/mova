@@ -18,7 +18,13 @@
 накреслила через аркуш()/контур()/розмір()/..., малюється з
 yadro.drafting.для_екрана(); гортання пальцем, масштаб двома пальцями
 (Scatter), «Вмістити все». «Зберегти»/«Відкрити» — програми у теці
-застосунку/програми (redaktor.список_програм тощо). Поле коду гортається пальцем в обидва
+застосунку/програми (redaktor.список_програм тощо). «Зробити застосунок»
+— поточна програма стає окремим застосунком (zastosunky.py: тека
+застосунки/назва/ з програма.мова, main.py-запускачем, buildozer.spec,
+icon.png) і, якщо в «Налаштування» задано токен GitHub, публікується в
+репозиторій одним комітом через API (github.py) — далі workflow
+zastosunky.yml збирає APK. Токен зберігається у теці застосунку
+(налаштування.json) і ніколи не друкується. Поле коду гортається пальцем в обидва
 боки (scroll_from_swipe), номери рядків лишаються на місці. Редакторська логіка (каркаси, автовідступ, автозакриття, перевірка
 помилок) живе в redaktor.py без Kivy і тестується на комп'ютері; тут —
 лише прив'язка до віджетів. Рядок з помилкою підкреслюється червоним;
@@ -42,26 +48,27 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "1.0"
+ВЕРСІЯ = "1.1"
 
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.text import Label as CoreLabel
 from kivy.core.window import Window
-from kivy.graphics import Color, Line, PopMatrix, PushMatrix, Rectangle, Rotate, Triangle
+from kivy.graphics import Color, Line
 from kivy.metrics import dp, sp
 from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.codeinput import CodeInput
 from kivy.uix.label import Label
-from kivy.uix.scatter import Scatter
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.stencilview import StencilView
 from kivy.uix.textinput import TextInput
-from kivy.uix.widget import Widget
 
+import github
 import redaktor
+import zastosunky
+from vidzhety import ПолотноКреслення, прокручуваний_ряд, прокручуваний_текст
 from yadro import dovidka
 
 # Вікно стискається над екранною клавіатурою, тож панель швидких кнопок
@@ -110,32 +117,6 @@ def _записати_крешлог(текст, тека_даних):
         (тека / "crash.txt").write_text(текст, encoding="utf-8")
     except Exception:
         pass
-
-
-def _прокручуваний_текст(текст="", шрифт=None, розмір="15sp"):
-    """ScrollView з Label, що переносить рядки й росте у висоту."""
-    мітка = Label(
-        text=текст, size_hint_y=None, halign="left", valign="top",
-        font_size=розмір, **({"font_name": шрифт} if шрифт else {}),
-    )
-    мітка.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
-    мітка.bind(texture_size=lambda і, р: setattr(і, "height", р[1] + dp(8)))
-    прокрутка = ScrollView()
-    прокрутка.add_widget(мітка)
-    return прокрутка, мітка
-
-
-def _прокручуваний_ряд(кнопки, висота):
-    """Горизонтально прокручуваний ряд віджетів фіксованої ширини."""
-    ряд = BoxLayout(size_hint=(None, 1), spacing=dp(4))
-    ряд.bind(minimum_width=ряд.setter("width"))
-    for к in кнопки:
-        ряд.add_widget(к)
-    прокрутка = ScrollView(
-        size_hint_y=None, height=висота, do_scroll_y=False, bar_width=0,
-    )
-    прокрутка.add_widget(ряд)
-    return прокрутка
 
 
 class ПолеКоду(CodeInput):
@@ -240,94 +221,6 @@ class НомериРядків(StencilView):
         self.мітка.top = поле.top - поле.padding[1] + поле.scroll_y
 
 
-ПІКСЕЛІВ_НА_ММ = 3.0  # базовий масштаб полотна до зуму пальцями
-
-
-class ПолотноКреслення(StencilView):
-    """Полотно, на якому малюється креслення з drafting.для_екрана().
-    Усередині — Scatter (гортання одним пальцем, масштаб двома) з
-    віджетом-аркушем, координати якого — мм × ПІКСЕЛІВ_НА_ММ, Y вгору."""
-
-    def __init__(self, **kw):
-        super().__init__(**kw)
-        self.креслення = None
-        self.scatter = Scatter(do_rotation=False, do_translation=True, do_scale=True,
-                               scale_min=0.05, scale_max=40, size_hint=(None, None))
-        self.аркуш = Widget(size_hint=(None, None))
-        self.scatter.add_widget(self.аркуш)
-        self.add_widget(self.scatter)
-        self.bind(size=lambda *_: self.вмістити())
-
-    def показати(self, креслення):
-        self.креслення = креслення
-        self._перемалювати()
-        self.вмістити()
-
-    def вмістити(self):
-        """«Вмістити все»: масштаб і положення, щоб аркуш ліг у полотно."""
-        if self.креслення is None or self.width <= 0 or self.height <= 0:
-            return
-        ш = self.креслення["ширина"] * ПІКСЕЛІВ_НА_ММ
-        в = self.креслення["висота"] * ПІКСЕЛІВ_НА_ММ
-        масштаб = min((self.width - dp(12)) / ш, (self.height - dp(12)) / в)
-        self.scatter.scale = max(0.05, масштаб)
-        self.scatter.pos = (
-            self.x + (self.width - ш * self.scatter.scale) / 2,
-            self.y + (self.height - в * self.scatter.scale) / 2,
-        )
-
-    def _колір(self, hex_):
-        hex_ = hex_.lstrip("#")
-        return tuple(int(hex_[i:i + 2], 16) / 255 for i in (0, 2, 4)) + (1,)
-
-    def _перемалювати(self):
-        к = self.креслення
-        м = ПІКСЕЛІВ_НА_ММ
-        полотно = self.аркуш.canvas
-        полотно.clear()
-        if к is None:
-            return
-        ш, в = к["ширина"] * м, к["висота"] * м
-        self.аркуш.size = (ш, в)
-        self.scatter.size = (ш, в)
-        with полотно:
-            Color(*self._колір(к["фон"]))
-            Rectangle(pos=(0, 0), size=(ш, в))
-            Color(*self._колір(к["лінії"]))
-            for ф in к["фігури"]:
-                тип = ф["тип"]
-                if тип == "лінія":
-                    товщина = max(1.0, ф["товщина"] * м)
-                    if ф.get("штрих"):
-                        Line(points=[к_ * м for к_ in ф["точки"]], width=1,
-                             dash_length=max(2.0, ф["штрих"][0] * м), dash_offset=max(2.0, ф["штрих"][1] * м))
-                    else:
-                        Line(points=[к_ * м for к_ in ф["точки"]], width=товщина)
-                elif тип == "ламана":
-                    Line(points=[к_ * м for к_ in ф["точки"]], width=max(1.0, ф["товщина"] * м),
-                         close=ф.get("замкнена", False), joint="miter")
-                elif тип == "прямокутник":
-                    Line(rectangle=(ф["x"] * м, ф["y"] * м, ф["ш"] * м, ф["в"] * м),
-                         width=max(1.0, ф["товщина"] * м))
-                elif тип == "трикутник":
-                    Triangle(points=[к_ * м for к_ in ф["точки"]])
-                elif тип == "дуга":
-                    # Kivy: кут 0 — угорі, за годинниковою; у фігурі — від осі x проти годинникової
-                    a, b = 90 - max(ф["від"], ф["до"]), 90 - min(ф["від"], ф["до"])
-                    Line(circle=(ф["cx"] * м, ф["cy"] * м, ф["r"] * м, a, b),
-                         width=max(1.0, ф["товщина"] * м))
-                elif тип == "текст":
-                    мітка = CoreLabel(text=ф["текст"], font_size=max(6, ф["розмір"] * м), font_name=МОНО)
-                    мітка.refresh()
-                    т = мітка.texture
-                    x, y = ф["x"] * м, ф["y"] * м
-                    зсув_x = -т.width / 2 if ф.get("вирівнювання") == "середина" else 0
-                    PushMatrix()
-                    Rotate(angle=ф.get("кут", 0), origin=(x, y))
-                    Rectangle(texture=т, pos=(x + зсув_x, y - т.height / 2), size=т.size)
-                    PopMatrix()
-
-
 class МоваApp(App):
     title = "Мова"
 
@@ -342,7 +235,7 @@ class МоваApp(App):
             except Exception:
                 тека = str(Path.home())
             _записати_крешлог(шапка + "\n\n" + тіло, тека)
-            прокрутка, _ = _прокручуваний_текст(тіло + "\n" + "-" * 40 + "\n" + шапка)
+            прокрутка, _ = прокручуваний_текст(тіло + "\n" + "-" * 40 + "\n" + шапка)
             return прокрутка
 
     # ---- екран редактора ------------------------------------------------
@@ -389,7 +282,7 @@ class МоваApp(App):
 
         корінь.add_widget(self._панель_вставок())
 
-        self._прокрутка_виводу, self.вивід = _прокручуваний_текст(
+        self._прокрутка_виводу, self.вивід = прокручуваний_текст(
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
         # нижня частина: або вивід, або полотно креслення
@@ -521,12 +414,14 @@ class МоваApp(App):
             Button(text="Креслення", on_release=lambda *_: self._показати_креслення(not self._показано_креслення)),
             Button(text="Зберегти", on_release=self._зберегти),
             Button(text="Відкрити", on_release=self._відкрити),
+            Button(text="Зробити застосунок", on_release=self._зробити_застосунок),
+            Button(text="Налаштування", on_release=self._налаштування),
             Button(text="Довідка", on_release=self._довідка),
         ]
         for к in кнопки:
             к.size_hint_x = None
             к.width = dp(11) * len(к.text) + dp(28)
-        return _прокручуваний_ряд(кнопки, висота=dp(44))
+        return прокручуваний_ряд(кнопки, висота=dp(44))
 
     def _панель_вставок(self):
         """Горизонтально прокручуваний ряд кнопок швидкого вводу: каркас
@@ -539,7 +434,7 @@ class МоваApp(App):
             )
             кнопка.bind(on_release=lambda к, кл=ключ: self._вставити(кл))
             кнопки.append(кнопка)
-        return _прокручуваний_ряд(кнопки, висота=dp(44))
+        return прокручуваний_ряд(кнопки, висота=dp(44))
 
     # ---- редагування -------------------------------------------------------
 
@@ -722,6 +617,86 @@ class МоваApp(App):
         self.код.text = текст
         self.вивід.text = f"Відкрито «{назва}»."
         Clock.schedule_once(lambda dt: self._повернути_фокус(), 0)
+
+    # ---- «Зробити застосунок» і публікація ----------------------------------------
+
+    def _корінь_репо(self):
+        """Де лежить тека застосунки/: у репозиторії, якщо main.py запущено з
+        нього (є .git), інакше — у теці застосунку на телефоні."""
+        if (сюди / ".git").is_dir():
+            return сюди
+        return Path(self.user_data_dir)
+
+    def _зробити_застосунок(self, *_):
+        self._показати_ввід("Назва застосунку:", self._створити_застосунок)
+
+    def _створити_застосунок(self, назва):
+        self._показати_креслення(False)
+        try:
+            файли = zastosunky.файли_застосунку(назва, self.код.text, ВЕРСІЯ)
+            тека, імена = zastosunky.створити_застосунок(self._корінь_репо(), назва, self.код.text, ВЕРСІЯ)
+        except zastosunky.ПомилкаЗастосунку as e:
+            self.вивід.text = f"Не вийшло: {e}"
+            return
+        except Exception as e:
+            self.вивід.text = f"Не вдалося записати застосунок: {e}"
+            return
+        текст = f"Застосунок «{zastosunky.безпечна_назва(назва)}» створено:\n{тека}\n  " + "\n  ".join(імена)
+        налашт = github.прочитати_налаштування(self.user_data_dir)
+        if not налашт["токен"]:
+            self.вивід.text = текст + (
+                "\n\nЩоб надіслати його в GitHub на збірку APK, задай токен у «Налаштування»."
+            )
+            return
+        self.вивід.text = текст + f"\n\nНадсилаю в {налашт['репо']}…"
+        шляхи = zastosunky.шляхи_для_публікації(назва, файли)
+        повідомлення = f"Застосунок «{zastosunky.безпечна_назва(назва)}» (з редактора Мови {ВЕРСІЯ})"
+        threading.Thread(
+            target=self._опублікувати_у_потоці, args=(налашт, шляхи, повідомлення, текст), daemon=True
+        ).start()
+
+    def _опублікувати_у_потоці(self, налашт, шляхи, повідомлення, текст):
+        try:
+            sha = github.опублікувати(налашт["токен"], налашт["репо"], шляхи, повідомлення, налашт["гілка"])
+            результат = (
+                f"{текст}\n\nОпубліковано в {налашт['репо']}: коміт {sha[:7]}. "
+                "GitHub Actions збере APK — забери його в Artifacts запуску «Застосунки з програм»."
+            )
+        except github.ПомилкаПублікації as e:
+            результат = f"{текст}\n\nНе опубліковано: {e}"
+        except Exception as e:
+            результат = f"{текст}\n\nНе опубліковано: {type(e).__name__}: {e}"
+        Clock.schedule_once(lambda dt: setattr(self.вивід, "text", результат), 0)
+
+    def _налаштування(self, *_):
+        налашт = github.прочитати_налаштування(self.user_data_dir)
+        self._показати_креслення(False)
+        self.вивід.text = (
+            "Налаштування публікації в GitHub:\n"
+            f"  репозиторій: {налашт['репо']}\n"
+            f"  гілка: {налашт['гілка']}\n"
+            f"  токен: {github.замаскувати(налашт['токен'])}\n\n"
+            "Введи новий токен (Personal Access Token з правом repo). "
+            "Порожньо — лишити як є."
+        )
+        self._поле_вводу.password = True
+        self._показати_ввід("Токен GitHub:", self._зберегти_токен)
+
+    def _зберегти_токен(self, токен):
+        self._поле_вводу.password = False
+        if токен.strip():
+            github.зберегти_налаштування(self.user_data_dir, токен=токен)
+            self.вивід.text = "Токен збережено (у теці застосунку, не друкується)."
+        else:
+            self.вивід.text = "Токен не змінено."
+        налашт = github.прочитати_налаштування(self.user_data_dir)
+        self._показати_ввід(f"Репозиторій (зараз {налашт['репо']}), порожньо — лишити:", self._зберегти_репо)
+
+    def _зберегти_репо(self, репо):
+        if репо.strip():
+            github.зберегти_налаштування(self.user_data_dir, репо=репо)
+            self.вивід.text += f"\nРепозиторій: {репо.strip()}."
+        self.вивід.text += "\nГотово. «Зробити застосунок» тепер надсилатиме програму в GitHub."
 
     def _стоп(self, *_):
         self._стоп_запитано = True
