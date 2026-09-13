@@ -26,6 +26,10 @@ source.exclude_patterns = *.pyc,*.байт,*.spec.local
 # Версія — з yadro/versiya.py (єдине джерело; там ВЕРСІЯ = "…")
 version.regex = ВЕРСІЯ = "([^"]+)"
 version.filename = %(source.dir)s/yadro/versiya.py
+# versionCode: має зростати з кожною версією (інакше Android не перезапише
+# старий застосунок). Літерал = yadro.versiya.ЧИСЛОВА_ВЕРСІЯ (1.3 -> 10300);
+# workflow підставляє його перед збіркою, тест стежить за збігом.
+android.numeric_version = 10300
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише

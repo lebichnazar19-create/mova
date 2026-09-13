@@ -21,7 +21,7 @@ import sys
 import zlib
 from pathlib import Path
 
-from yadro.versiya import ВЕРСІЯ
+from yadro.versiya import ВЕРСІЯ, числова_версія
 
 ТЕКА = "застосунки"
 ФАЙЛ_ПРОГРАМИ = "програма.мова"
@@ -125,6 +125,7 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 source.exclude_dirs = __pycache__,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт
 version = {версія}
+android.numeric_version = {числова}
 requirements = python3,kivy==2.3.0
 p4a.branch = v2024.01.21
 orientation = portrait
@@ -373,7 +374,7 @@ def файли_застосунку(назва, код, версія=ВЕРСІ�
     return {
         ФАЙЛ_ПРОГРАМИ: код,
         "main.py": ЗАПУСКАЧ.format(назва=ім_я),
-        "buildozer.spec": СПЕЦИФІКАЦІЯ.format(назва=ім_я, слаг=слаг(ім_я), версія=версія),
+        "buildozer.spec": СПЕЦИФІКАЦІЯ.format(назва=ім_я, слаг=слаг(ім_я), версія=версія, числова=числова_версія(версія)),
         "icon.png": іконка_png(ім_я),
     }
 

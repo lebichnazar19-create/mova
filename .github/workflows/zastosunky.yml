@@ -71,6 +71,25 @@ jobs:
       - name: Buildozer + Cython
         run: pip install buildozer cython
 
+      # Відомості про збірку для «Довідки» (yadro/zbirka.py) і versionCode
+      # з yadro/versiya.py — щоб з телефона було видно, що встановлено
+      - name: Відомості про збірку і числова версія
+        run: |
+          python3 - <<'PY'
+          import datetime, os, pathlib, re
+          from yadro.versiya import ВЕРСІЯ, ЧИСЛОВА_ВЕРСІЯ
+          дата = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+          коміт = os.environ.get("GITHUB_SHA", "")[:7] or "—"
+          pathlib.Path("yadro/zbirka.py").write_text(
+              f'"""Збірка (згенеровано workflow)."""\n\nДАТА = "{дата}"\nКОМІТ = "{коміт}"\n', encoding="utf-8")
+          spec = pathlib.Path("застосунки") / os.environ["APP"] / "buildozer.spec"
+          if spec.is_file():
+              spec.write_text(re.sub(r"^android\.numeric_version = .*$", f"android.numeric_version = {ЧИСЛОВА_ВЕРСІЯ}", spec.read_text(encoding="utf-8"), flags=re.M), encoding="utf-8")
+          print("версія", ВЕРСІЯ, "код", ЧИСЛОВА_ВЕРСІЯ, "збірка", дата, "коміт", коміт)
+          PY
+          echo "VERSIYA=$(python3 -c 'from yadro.versiya import ВЕРСІЯ; print(ВЕРСІЯ)')" >> "$GITHUB_ENV"
+
+
       - name: Кеш Buildozer і Gradle
         uses: actions/cache@v4
         with:
@@ -116,9 +135,6 @@ jobs:
 
       # Назва артефакта: «програми-APK-<версія>-<програма>» — основний
       # застосунок зветься «мова-APK-<версія>» (build.yml).
-      - name: Версія для назви артефакта
-        run: echo "VERSIYA=$(python3 -c 'from yadro.versiya import ВЕРСІЯ; print(ВЕРСІЯ)')" >> "$GITHUB_ENV"
-
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
