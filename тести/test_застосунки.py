@@ -112,7 +112,10 @@ def test_workflow_збирає_кожну_теку_і_докладає_ядро(
     текст = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "zastosunky.yml").read_text(encoding="utf-8")
     assert "matrix:" in текст and "fromJSON" in текст
     assert "cp -r yadro zapusk.py vidzhety.py" in текст
-    assert "name: ${{ matrix.app }}" in текст   # артефакт зветься як програма
+    assert "name: програми-APK-${{ env.VERSIYA }}-${{ matrix.app }}" in текст   # однозначна назва артефакта
+    основний = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    assert "name: мова-APK-${{ env.VERSIYA }}" in основний
+    assert "from yadro.versiya import ВЕРСІЯ" in основний and "from yadro.versiya import ВЕРСІЯ" in текст
     import re
     # ідентифікатори jobs/steps і вирази ${{ }} — лише латиниця, інакше GitHub не розбирає файл
     for id_ in re.findall(r"^  ([^\s:#-][^:]*):$", текст, re.M) + re.findall(r"^\s+- id: (\S+)$", текст, re.M):

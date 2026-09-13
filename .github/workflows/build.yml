@@ -92,9 +92,15 @@ jobs:
       - name: Зібрати APK (buildozer android debug)
         run: buildozer -v android debug
 
+      # Версія — з yadro/versiya.py (єдине джерело), у назві артефакта:
+      # «мова-APK-1.3». Артефакт зібраних програм зветься «програми-APK-…»
+      # (zastosunky.yml) — щоб не плутати при завантаженні.
+      - name: Версія для назви артефакта
+        run: echo "VERSIYA=$(python3 -c 'from yadro.versiya import ВЕРСІЯ; print(ВЕРСІЯ)')" >> "$GITHUB_ENV"
+
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: мова-apk
+          name: мова-APK-${{ env.VERSIYA }}
           path: bin/*.apk
           if-no-files-found: error

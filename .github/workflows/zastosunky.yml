@@ -114,9 +114,14 @@ jobs:
         working-directory: ${{ env.BUILD_DIR }}
         run: buildozer -v android debug
 
+      # Назва артефакта: «програми-APK-<версія>-<програма>» — основний
+      # застосунок зветься «мова-APK-<версія>» (build.yml).
+      - name: Версія для назви артефакта
+        run: echo "VERSIYA=$(python3 -c 'from yadro.versiya import ВЕРСІЯ; print(ВЕРСІЯ)')" >> "$GITHUB_ENV"
+
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.app }}
+          name: програми-APK-${{ env.VERSIYA }}-${{ matrix.app }}
           path: ${{ env.BUILD_DIR }}/bin/*.apk
           if-no-files-found: error
