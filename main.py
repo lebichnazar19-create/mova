@@ -47,8 +47,11 @@ from pathlib import Path
 if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
-# Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "1.1.2"
+# Тримати в синхроні з `version = ...` у buildozer.spec. Назва застосунку на
+# екрані — «${мова}» (title там само): «мова» у фігурних дужках зі знаком
+# долара — натяк, що це мова програмування на телефоні. Ім'я пакета
+# (package.name = mova), репозиторій, тека й ключові слова — без змін.
+ВЕРСІЯ = "1.1.3"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -250,7 +253,7 @@ class НомериРядків(StencilView):
 
 
 class МоваApp(App):
-    title = "Мова"
+    title = "${мова}"
 
     def build(self):
         try:
@@ -451,7 +454,7 @@ class МоваApp(App):
         панель = StackLayout(orientation="lr-tb", size_hint_y=None, spacing=(dp(4), dp(4)))
         панель.bind(minimum_height=панель.setter("height"))
         версія = Label(
-            text=f"Мова {ВЕРСІЯ}", size_hint=(None, None), height=dp(38), width=dp(74),
+            text=f"${{мова}} {ВЕРСІЯ}", size_hint=(None, None), height=dp(38), width=dp(74),
             font_size=sp(13), color=(0.45, 0.45, 0.5, 1),
         )
         панель.add_widget(версія)

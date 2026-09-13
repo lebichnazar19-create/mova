@@ -2,7 +2,7 @@
 
 # Назва застосунку (показується в списку застосунків Android) —
 # може бути кирилицею, на відміну від package.name/package.domain нижче.
-title = Мова
+title = ${мова}
 
 # package.name/package.domain формують ідентифікатор Android-застосунку
 # (тут: org.mova.mova) — за вимогами Android/Java мають бути латиницею,
@@ -23,7 +23,7 @@ source.include_exts = py,png,jpg,kv,atlas,мова
 source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
-version = 1.1.2
+version = 1.1.3
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише
