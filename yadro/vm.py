@@ -11,7 +11,7 @@ VM отримує вже готовий байткод (dict з ключами "
 import copy
 import time
 
-from . import chas, ekran, heometriya, mashyna, plata, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
+from . import chas, ekran, heometriya, mashyna, plata, proshyvka, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
 from .heometriya import Точка
 from .natives import (
     ПРИСТРІЙ as _ІМЕНА_ПРИСТРІЙ,
@@ -25,6 +25,7 @@ from .natives import (
     ЧАС as _ІМЕНА_ЧАС,
     ГЕОМЕТРІЯ as _ІМЕНА_ГЕОМЕТРІЯ,
     ПЛАТА as _ІМЕНА_ПЛАТА,
+    ПРОШИВКА as _ІМЕНА_ПРОШИВКА,
 )
 from .errors import ПомилкаВиконання
 
@@ -163,6 +164,9 @@ class ВМ:
             self._native[ім_я] = getattr(chas, ім_я)
         for ім_я in _ІМЕНА_ПЛАТА:
             self._native[ім_я] = getattr(plata, ім_я)
+        for ім_я in _ІМЕНА_ПРОШИВКА:
+            self._native[ім_я] = getattr(proshyvka, ім_я)
+        proshyvka.задати_теку(тека_файлів)   # відносні шляхи .bin — як у файлових функціях
         for ім_я in _ІМЕНА_ГЕОМЕТРІЯ:
             if ім_я in ("кут", "зсунь"):
                 continue  # об'єднуються з drafting.кут / sketch.зсунь нижче, за арністю

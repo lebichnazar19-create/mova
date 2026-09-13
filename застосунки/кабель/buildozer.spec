@@ -6,8 +6,8 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,мова
 source.exclude_dirs = __pycache__,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт
-version = 1.3
-android.numeric_version = 10300
+version = 1.4
+android.numeric_version = 10400
 requirements = python3,kivy==2.3.0
 p4a.branch = v2024.01.21
 orientation = portrait

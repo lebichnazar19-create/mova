@@ -253,6 +253,12 @@ class НомериРядків(StencilView):
         self.мітка.top = поле.top - поле.padding[1] + поле.scroll_y
 
 
+def plata_підключено_по_wifi():
+    from yadro import plata
+    назва = plata.підключено()
+    return bool(назва) and назва.startswith("Wi-Fi")
+
+
 class МоваApp(App):
     title = "Мова"
 
@@ -456,6 +462,7 @@ class МоваApp(App):
             Button(text="Зробити застосунок", on_release=self._зробити_застосунок),
             Button(text="Налаштування", on_release=self._налаштування),
             Button(text="Плата", on_release=self._плата),
+            Button(text="Прошити агента", on_release=self._прошити_агента),
             Button(text="Довідка", on_release=self._довідка),
         ]
         панель = StackLayout(orientation="lr-tb", size_hint_y=None, spacing=(dp(4), dp(4)))
@@ -795,6 +802,54 @@ class МоваApp(App):
 
     def _повідомити(self, текст):
         Clock.schedule_once(lambda dt: setattr(self.вивід, "text", текст), 0)
+
+    # ---- прошивання агента (yadro/proshyvka.py) -------------------------------------
+
+    def _прошити_агента(self, *_):
+        """«Прошити агента»: залити готовий agent_esp32.bin на ESP32 по USB
+        без Arduino IDE. Файл — agent/agent_esp32/agent_esp32.bin у теці
+        застосунку (репозиторії) або agent_esp32.bin у теці даних."""
+        from yadro import proshyvka
+
+        self._показати_креслення(False)
+        self._прибрати_кнопки_програми()
+        файл = proshyvka.знайти_агента(сюди, self.user_data_dir)
+        if файл is None:
+            self.вивід.text = (
+                "Готового agent_esp32.bin немає.\n"
+                f"Поклади його як {proshyvka.ФАЙЛ_АГЕНТА} у репозиторій (потрапить у наступний APK)\n"
+                f"або як agent_esp32.bin у теку застосунку: {self.user_data_dir}\n"
+                "Як зібрати — README, розділ «Агент для ESP32: як зібрати .bin»."
+            )
+            return
+        if plata_підключено_по_wifi():
+            self.вивід.text = "Прошивати можна лише по USB-кабелю. Підключи плату кабелем."
+            return
+        self.вивід.text = f"Прошиваю {файл.name} ({файл.stat().st_size} байт) на USB-плату…"
+
+        def прогрес(відсоток, текст):
+            self._повідомити(f"Прошивка агента: {відсоток}% — {текст}")
+
+        def у_потоці():
+            старий = proshyvka.при_прогресі
+            proshyvka.при_прогресі = прогрес
+            try:
+                from yadro import plata
+                plata.відключись()          # звільнити USB для завантажувача
+                з = proshyvka._сеанс("USB")
+                try:
+                    інфо = f"чип {з.чип}, MAC {з.mac()}"
+                    з.записати(файл.read_bytes(), 0x0)
+                    з.перезавантажити()
+                finally:
+                    з.порт.close()
+                self._повідомити(f"Агент прошито ({інфо}). Плата перезавантажена — тепер «Плата» → «Перевірити».")
+            except Exception as e:
+                self._повідомити(f"Прошивка не вдалась: {e}")
+            finally:
+                proshyvka.при_прогресі = старий
+
+        threading.Thread(target=у_потоці, daemon=True).start()
 
     def _підключити_плату(self, назва):
         from yadro import plata

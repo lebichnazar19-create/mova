@@ -16,11 +16,11 @@ source.dir = .
 # Які файли з source.dir пакувати в APK за розширенням.
 # "мова" — на майбутнє, коли демо/приклади (*.мова) підключатимуться як
 # файли-активи, а не як рядок просто в main.py.
-source.include_exts = py,png,jpg,kv,atlas,мова
+source.include_exts = py,png,jpg,kv,atlas,мова,bin
 
 # Не тягнути в APK нічого зайвого: git-метадані, кеші тестів, байткод,
 # готові білди Buildozer з попередніх запусків.
-source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,agent,.buildozer,bin
+source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
 # Версія — з yadro/versiya.py (єдине джерело; там ВЕРСІЯ = "…")
@@ -29,7 +29,7 @@ version.filename = %(source.dir)s/yadro/versiya.py
 # versionCode: має зростати з кожною версією (інакше Android не перезапише
 # старий застосунок). Літерал = yadro.versiya.ЧИСЛОВА_ВЕРСІЯ (1.3 -> 10300);
 # workflow підставляє його перед збіркою, тест стежить за збігом.
-android.numeric_version = 10300
+android.numeric_version = 10400
 
 # Мінімум: сам інтерпретатор — чистий stdlib Python, жодних сторонніх
 # pip-пакетів йому не треба (див. ПЛАН_APK.md, розділ 0). Kivy — лише
