@@ -51,7 +51,7 @@ if str(сюди) not in sys.path:
 # екрані — «${мова}» (title там само): «мова» у фігурних дужках зі знаком
 # долара — натяк, що це мова програмування на телефоні. Ім'я пакета
 # (package.name = mova), репозиторій, тека й ключові слова — без змін.
-ВЕРСІЯ = "1.2"
+ВЕРСІЯ = "1.2.1"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -316,20 +316,25 @@ class МоваApp(App):
         self._прокрутка_виводу, self.вивід = прокручуваний_текст(
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
-        # нижня частина: або вивід, або полотно креслення
         self._низ = BoxLayout(orientation="vertical")
         self._низ.add_widget(self._прокрутка_виводу)
+        корінь.add_widget(self._низ)
+
+        корінь.add_widget(self._рядок_вводу())
+        корінь.add_widget(self._ряд_кнопок_програми())
+
+        # Режим креслення: полотну дістається весь екран під верхніми
+        # кнопками — поле коду, слова-кнопки, вивід ховаються; «До виводу»
+        # повертає все назад (список віджетів режиму редактора нижче).
+        self._корінь = корінь
+        self._віджети_редактора = list(корінь.children)[::-1][1:]  # усе, крім панелі кнопок
         self._полотно = ПолотноКреслення()
-        self._панель_креслення = BoxLayout(orientation="vertical")
+        self._панель_креслення = BoxLayout(orientation="vertical", spacing=dp(2))
         ряд = BoxLayout(size_hint_y=None, height=dp(36), spacing=dp(4))
         ряд.add_widget(Button(text="Вмістити все", on_release=lambda *_: self._полотно.вмістити()))
         ряд.add_widget(Button(text="До виводу", on_release=lambda *_: self._показати_креслення(False)))
         self._панель_креслення.add_widget(ряд)
         self._панель_креслення.add_widget(self._полотно)
-        корінь.add_widget(self._низ)
-
-        корінь.add_widget(self._рядок_вводу())
-        корінь.add_widget(self._ряд_кнопок_програми())
         self._запланувати_перевірку()
         return корінь
 
@@ -627,10 +632,16 @@ class МоваApp(App):
         if так == self._показано_креслення:
             return
         self._показано_креслення = так
-        self._низ.clear_widgets()
-        self._низ.add_widget(self._панель_креслення if так else self._прокрутка_виводу)
+        корінь = self._корінь
+        панель_кнопок = list(корінь.children)[-1]  # перший доданий — верхні кнопки
+        корінь.clear_widgets()
+        корінь.add_widget(панель_кнопок)
         if так:
+            корінь.add_widget(self._панель_креслення)
             Clock.schedule_once(lambda dt: self._полотно.вмістити(), 0)
+        else:
+            for в in self._віджети_редактора:
+                корінь.add_widget(в)
 
     # ---- збереження програм ------------------------------------------------------
 
