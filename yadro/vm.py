@@ -11,7 +11,8 @@ VM отримує вже готовий байткод (dict з ключами "
 import copy
 import time
 
-from . import chas, ekran, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
+from . import chas, ekran, heometriya, sketch, drafting, drawing, fayly, matematyka, prystriy, rozum, ryadky
+from .heometriya import Точка
 from .natives import (
     ПРИСТРІЙ as _ІМЕНА_ПРИСТРІЙ,
     РОЗУМ as _ІМЕНА_РОЗУМ,
@@ -22,6 +23,7 @@ from .natives import (
     МАТЕМАТИКА as _ІМЕНА_МАТЕМАТИКА,
     РЯДКИ as _ІМЕНА_РЯДКИ,
     ЧАС as _ІМЕНА_ЧАС,
+    ГЕОМЕТРІЯ as _ІМЕНА_ГЕОМЕТРІЯ,
 )
 from .errors import ПомилкаВиконання
 
@@ -74,6 +76,8 @@ def до_рядка(x):
         return "{" + ", ".join(f"{до_рядка(к)}: {до_рядка(в)}" for к, в in x.items()) + "}"
     if isinstance(x, Екземпляр):
         return x.тип + "(" + ", ".join(f"{к}: {до_рядка(в)}" for к, в in x.поля.items()) + ")"
+    if isinstance(x, Точка):
+        return f"({до_рядка(x.x)}, {до_рядка(x.y)})"
     return str(x)
 
 
@@ -92,6 +96,8 @@ def _тип_укр(x):
         return "словник"
     if isinstance(x, Екземпляр):
         return x.тип
+    if isinstance(x, Точка):
+        return "Точка"
     return type(x).__name__
 
 
@@ -146,6 +152,10 @@ class ВМ:
             self._native[ім_я] = getattr(matematyka, ім_я)
         for ім_я in _ІМЕНА_ЧАС:
             self._native[ім_я] = getattr(chas, ім_я)
+        for ім_я in _ІМЕНА_ГЕОМЕТРІЯ:
+            if ім_я in ("кут", "зсунь"):
+                continue  # об'єднуються з drafting.кут / sketch.зсунь нижче, за арністю
+            self._native[ім_я] = getattr(heometriya, "точка" if ім_я == "Точка" else ім_я)
         for ім_я in _ІМЕНА_РЯДКИ:
             if ім_я == "текст":
                 continue  # об'єднується з drawing.текст нижче, за арністю
@@ -194,6 +204,8 @@ class ВМ:
 
         def _довжина_обʼєднана(*args):
             if len(args) == 1:
+                if isinstance(args[0], Точка):
+                    return heometriya.довжина(args[0])
                 return _довжина_мовна(*args)
             if len(args) == 2:
                 return _довжина_ескіз(*args)
@@ -214,6 +226,32 @@ class ВМ:
             )
 
         self._native["текст"] = _текст_обʼєднаний
+
+        # "кут": 2 аргументи — геометрія (кут напрямку а->б у градусах),
+        # 4 — креслення (розмір кута на аркуші); "зсунь": 3 аргументи —
+        # геометрія (нова точка/список), 2 — ескіз (зсув усієї геометрії)
+        def _кут_обʼєднаний(*args):
+            if len(args) == 2:
+                return heometriya.кут(*args)
+            if len(args) == 4:
+                return drafting.кут(*args)
+            raise ПомилкаВиконання(
+                "Функція «кут» приймає 2 аргументи (кут від а до б у градусах) "
+                "або 4 (кут на кресленні: точка1, вершина, точка2, радіус)."
+            )
+
+        def _зсунь_обʼєднаний(*args):
+            if len(args) == 3:
+                return heometriya.зсунь(*args)
+            if len(args) == 2:
+                return sketch.зсунь(*args)
+            raise ПомилкаВиконання(
+                "Функція «зсунь» приймає 3 аргументи (точка або список, dx, dy) "
+                "або 2 (зсув усього ескізу: dx, dy)."
+            )
+
+        self._native["кут"] = _кут_обʼєднаний
+        self._native["зсунь"] = _зсунь_обʼєднаний
 
     # ---- вбудовані мовні функції ------------------------------------------
 
@@ -478,14 +516,30 @@ class ВМ:
             self._push(self._додати(self._pop2()))
         elif опкод == "SUB":
             a, b = self._pop2()
+            if isinstance(a, Точка) and isinstance(b, Точка):
+                self._push(a - b)
+                self.pc += 1
+                return
             self._числа(a, b, "відняти")
             self._push(a - b)
         elif опкод == "MUL":
             a, b = self._pop2()
+            if isinstance(a, Точка) and _є_число(b):
+                self._push(a * b)
+                self.pc += 1
+                return
+            if _є_число(a) and isinstance(b, Точка):
+                self._push(b * a)
+                self.pc += 1
+                return
             self._числа(a, b, "помножити")
             self._push(a * b)
         elif опкод == "DIV":
             a, b = self._pop2()
+            if isinstance(a, Точка) and _є_число(b):
+                self._push(a / b)
+                self.pc += 1
+                return
             self._числа(a, b, "поділити")
             if b == 0:
                 self._помилка("Ділення на нуль.")
@@ -501,6 +555,10 @@ class ВМ:
             self._push(a % b)
         elif опкод == "NEG":
             x = self._pop()
+            if isinstance(x, Точка):
+                self._push(-x)
+                self.pc += 1
+                return
             if not _є_число(x):
                 self._помилка(f"Не можна застосувати унарний мінус до {_тип_укр(x)}.")
             self._push(-x)
@@ -620,6 +678,10 @@ class ВМ:
 
     def _додати(self, пара):
         a, b = пара
+        if isinstance(a, Точка) or isinstance(b, Точка):
+            if isinstance(a, Точка) and isinstance(b, Точка):
+                return a + b
+            self._помилка(f"Не можна скласти {_тип_укр(a)} і {_тип_укр(b)} — точку можна додати лише до точки.")
         if isinstance(a, str) or isinstance(b, str):
             return до_рядка(a) + до_рядка(b)
         if _є_список(a) and _є_список(b):
@@ -724,6 +786,10 @@ class ВМ:
         self._помилка(f"«у» працює зі словником, списком або рядком, а не з {_тип_укр(колекція)}.")
 
     def _поле_get(self, обʼєкт, імя):
+        if isinstance(обʼєкт, Точка):
+            if імя in ("x", "y"):
+                return getattr(обʼєкт, імя)
+            self._помилка(f"У Точки є лише поля «x» і «y», а не «{імя}».")
         if isinstance(обʼєкт, Екземпляр):
             if імя not in обʼєкт.поля:
                 self._помилка(f"У типі «{обʼєкт.тип}» немає поля «{імя}».")
@@ -735,6 +801,11 @@ class ВМ:
         self._помилка(f"Значення типу «{_тип_укр(обʼєкт)}» не має полів (просили «.{імя}»).")
 
     def _поле_set(self, обʼєкт, імя, значення):
+        if isinstance(обʼєкт, Точка):
+            self._помилка(
+                f"Точка незмінна: поле «{імя}» не можна присвоїти. Створи нову точку — "
+                "Точка(…, …), зсунь(т, dx, dy) тощо."
+            )
         if isinstance(обʼєкт, Екземпляр):
             if імя not in обʼєкт.поля:
                 self._помилка(
@@ -813,6 +884,10 @@ class ВМ:
 
     def _виклик_native(self, аргумент):
         імя, argc = аргумент
+        if імя in self.типи:
+            # власний «тип Точка» у програмі має перевагу над вбудованим
+            self._створити_екземпляр(імя, argc)
+            return
         fn = self._native.get(імя)
         if fn is None:
             self._помилка(f"Невідома вбудована функція «{імя}».")

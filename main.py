@@ -33,7 +33,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 # Тримати в синхроні з `version = ...` у buildozer.spec.
-ВЕРСІЯ = "0.7"
+ВЕРСІЯ = "0.8"
 
 from kivy.app import App
 from kivy.clock import Clock
