@@ -81,13 +81,22 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      - name: Докласти ядро мови до застосунку
+      # Buildozer/p4a збирають у теці проєкту, а її шлях містить кирилицю
+      # (застосунки/кабель) — рецепт pyjnius кличе javac із відносним
+      # шляхом, і Java на раннері не бачить файл (user.dir не в UTF-8):
+      # «error: file not found: jnius/src/.../NativeInvocationHandler.java».
+      # Тому збираємо копію застосунку в теці з латинським шляхом.
+      - name: Докласти ядро мови до застосунку (копія в ASCII-теці)
         run: |
-          cp -r yadro zapusk.py vidzhety.py "застосунки/$APP/"
-          ls -la "застосунки/$APP"
+          BUILD_DIR="$RUNNER_TEMP/mova_app"
+          rm -rf "$BUILD_DIR"
+          cp -r "застосунки/$APP" "$BUILD_DIR"
+          cp -r yadro zapusk.py vidzhety.py "$BUILD_DIR/"
+          echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
+          ls -la "$BUILD_DIR"
 
       - name: Прийняти ліцензії Android SDK
-        working-directory: застосунки/${{ matrix.app }}
+        working-directory: ${{ env.BUILD_DIR }}
         run: |
           set -e
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
@@ -102,12 +111,12 @@ jobs:
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
 
       - name: Зібрати APK
-        working-directory: застосунки/${{ matrix.app }}
+        working-directory: ${{ env.BUILD_DIR }}
         run: buildozer -v android debug
 
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.app }}
-          path: застосунки/${{ matrix.app }}/bin/*.apk
+          path: ${{ env.BUILD_DIR }}/bin/*.apk
           if-no-files-found: error
