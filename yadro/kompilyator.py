@@ -17,6 +17,8 @@
     TRY_BEGIN     адреса_обробника / TRY_END      — блок «спробуй» (0.5)
 """
 
+import dataclasses
+
 from . import syntax as А
 from .natives import ІМЕНА_NATIVE
 from .errors import ПомилкаКомпіляції
@@ -234,7 +236,11 @@ class Компілятор:
                 f"вбудованою функцією. Оберіть інше ім'я для власної дії.",
                 вузол,
             )
-        зробити = self._emit("MAKE_FUNCTION", [вузол.імя, list(вузол.параметри), None])
+        аргумент = [вузол.імя, list(вузол.параметри), None]
+        if getattr(вузол, "швидко", False):
+            # опис дії (серіалізований AST) — ВМ віддає його yadro/mashyna.py
+            аргумент.append(_серіалізувати({"імя": вузол.імя, "параметри": list(вузол.параметри), "тіло": вузол.тіло}))
+        зробити = self._emit("MAKE_FUNCTION", аргумент)
         j = self._emit("JUMP", None)
         старт_тіла = self._тут()
         self.код[зробити][1][2] = старт_тіла
@@ -427,6 +433,22 @@ class Компілятор:
             self._emit("CALL_NATIVE", [вузол.імя, len(вузол.аргументи)])
         else:
             self._emit("CALL", [вузол.імя, len(вузол.аргументи)])
+
+
+def _серіалізувати(вузол):
+    """AST -> словники/списки (для байткоду JSON): dataclass -> {"тип": Ім'яКласу, поля…}."""
+    if dataclasses.is_dataclass(вузол):
+        д = {"тип": type(вузол).__name__}
+        for поле in dataclasses.fields(вузол):
+            if поле.name in ("рядок", "позиція"):
+                continue
+            д[поле.name] = _серіалізувати(getattr(вузол, поле.name))
+        return д
+    if isinstance(вузол, (list, tuple)):
+        return [_серіалізувати(е) for е in вузол]
+    if isinstance(вузол, dict):
+        return {к: _серіалізувати(в) for к, в in вузол.items()}
+    return вузол
 
 
 def компілювати(програма: А.Програма):
