@@ -108,6 +108,15 @@ jobs:
 
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
 
+      # Що саме пакується: вміст yadro/ і версія — щоб у логу було видно,
+      # що збирається свіжий код (перевірка проти «старого APK»).
+      - name: Що пакується — yadro/ і версія
+        run: |
+          echo "коміт: $(git log -1 --oneline)"
+          echo "версія: $(python3 -c 'from yadro.versiya import ВЕРСІЯ, ЧИСЛОВА_ВЕРСІЯ; print(ВЕРСІЯ, ЧИСЛОВА_ВЕРСІЯ)')"
+          ls -la yadro/
+          grep -n "^version\|numeric_version\|include_exts\|exclude_dirs\|^source.dir" buildozer.spec || true
+
       - name: Зібрати APK (buildozer android debug)
         run: buildozer -v android debug
 
