@@ -7,7 +7,7 @@
     buildozer.spec  — назва, латинське ім'я пакета, іконка, ті самі
                       налаштування Android, що й у головного застосунку;
     icon.png        — іконка (колір від назви), згенерована без сторонніх бібліотек.
-Ядро мови (yadro/, zapusk.py, vidzhety.py) у теку НЕ копіюється — його
+Ядро мови (yadro/, biblioteky/, zapusk.py, vidzhety.py) у теку НЕ копіюється — його
 докладає workflow .github/workflows/zastosunky.yml під час збірки, тож у
 репозиторії ядро лишається в одному місці.
 
@@ -25,7 +25,7 @@ from yadro.versiya import ВЕРСІЯ, числова_версія
 
 ТЕКА = "застосунки"
 ФАЙЛ_ПРОГРАМИ = "програма.мова"
-ФАЙЛИ_ЯДРА = ("yadro", "zapusk.py", "vidzhety.py")  # докладає workflow при збірці
+ФАЙЛИ_ЯДРА = ("yadro", "biblioteky", "zapusk.py", "vidzhety.py")  # докладає workflow при збірці
 
 _ЗАБОРОНЕНО_В_НАЗВІ = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
@@ -144,7 +144,7 @@ log_level = 2
 
 ЗАПУСКАЧ = '''#!/usr/bin/env python3
 """Запускач застосунку «{назва}»: виконує програма.мова (мова «Мова») без
-редактора. Згенеровано zastosunky.py; ядро (yadro/, zapusk.py, vidzhety.py)
+редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py)
 докладає workflow під час збірки APK."""
 
 import sys

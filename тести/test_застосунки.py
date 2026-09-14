@@ -111,7 +111,7 @@ def test_приклад_кабель_у_репозиторії_збігаєть�
 def test_workflow_збирає_кожну_теку_і_докладає_ядро():
     текст = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "zastosunky.yml").read_text(encoding="utf-8")
     assert "matrix:" in текст and "fromJSON" in текст
-    assert "cp -r yadro zapusk.py vidzhety.py" in текст
+    assert "cp -r yadro biblioteky zapusk.py vidzhety.py" in текст
     assert "name: програми-APK-${{ env.VERSIYA }}-${{ matrix.app }}" in текст   # однозначна назва артефакта
     основний = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
     assert "name: мова-APK-${{ env.VERSIYA }}" in основний

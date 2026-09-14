@@ -11,7 +11,7 @@ import pytest
 import yadro.drafting as к
 import yadro.sketch as е
 from yadro.errors import ПомилкаВиконання
-from yadro.heometriya import Точка
+from biblioteky.geometriya import Точка
 from yadro.kompilyator import компілювати
 from yadro.parser import парсити_текст
 from yadro.vm import виконати_байткод

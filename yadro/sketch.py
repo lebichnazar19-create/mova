@@ -37,7 +37,10 @@ yadro/drafting.py.
 import math
 
 from .errors import ПомилкаВиконання
-from .heometriya import Точка, xy as _xy
+from .biblioteka import модуль as _бібліотека
+
+_гео = _бібліотека("геометрія")   # biblioteky/geometriya.py: Точка і [x, y]
+Точка, _xy = _гео.Точка, _гео.xy
 
 ПОРІГ_ПОХИБКИ = 0.001
 МАКС_ІТЕРАЦІЙ = 20000

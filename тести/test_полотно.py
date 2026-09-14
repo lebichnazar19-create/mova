@@ -12,7 +12,7 @@ import pytest
 
 import polotno
 import yadro.drafting as к
-from yadro.heometriya import Точка
+from biblioteky.geometriya import Точка
 
 
 @pytest.fixture

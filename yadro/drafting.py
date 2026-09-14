@@ -36,7 +36,10 @@ from pathlib import Path
 
 from . import sketch, drawing, prystriy
 from .errors import ПомилкаВиконання
-from .heometriya import Точка, xy as _xy
+from .biblioteka import модуль as _бібліотека
+
+_гео = _бібліотека("геометрія")   # biblioteky/geometriya.py: Точка і [x, y]
+Точка, _xy = _гео.Точка, _гео.xy
 
 # ---- товщини ліній і геометрія оформлення за спрощеним ЄСКД -------------------
 

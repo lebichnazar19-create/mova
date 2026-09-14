@@ -2,7 +2,7 @@ name: Застосунки з програм
 
 # Кожна тека в застосунки/ — окремий Android-застосунок (програма.мова +
 # main.py-запускач + buildozer.spec + icon.png, згенеровані zastosunky.py).
-# Ядро мови (yadro/, zapusk.py, vidzhety.py) докладається сюди перед
+# Ядро мови (yadro/, biblioteky/, zapusk.py, vidzhety.py) докладається сюди перед
 # збіркою, щоб у репозиторії воно лишалось в одному місці. Артефакт
 # зветься так само, як програма.
 on:
@@ -11,6 +11,7 @@ on:
     paths:
       - "застосунки/**"
       - "yadro/**"
+      - "biblioteky/**"
       - "zapusk.py"
       - "vidzhety.py"
       - ".github/workflows/zastosunky.yml"
@@ -110,7 +111,7 @@ jobs:
           BUILD_DIR="$RUNNER_TEMP/mova_app"
           rm -rf "$BUILD_DIR"
           cp -r "застосунки/$APP" "$BUILD_DIR"
-          cp -r yadro zapusk.py vidzhety.py "$BUILD_DIR/"
+          cp -r yadro biblioteky zapusk.py vidzhety.py "$BUILD_DIR/"
           echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
           ls -la "$BUILD_DIR"
 
