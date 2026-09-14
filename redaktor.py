@@ -213,6 +213,10 @@ except Exception:  # pragma: no cover — без pygments підсвітки п�
 if RegexLexer is not None:
     from yadro.keywords import КЛЮЧОВІ_СЛОВА
     from yadro.natives import ІМЕНА_NATIVE
+    from yadro import biblioteka
+
+    # дії бібліотек (Точка, відстань, …) підсвічуються як вбудовані
+    _ВБУДОВАНІ = ІМЕНА_NATIVE | set(biblioteka.усі_імена())
 
     _СТАЛІ = ("істина", "хиба", "ніщо")
     _КЛЮЧОВІ = tuple(с for с in КЛЮЧОВІ_СЛОВА if с not in _СТАЛІ)
@@ -235,7 +239,7 @@ if RegexLexer is not None:
                 (r"\d+\.\d+", Number.Float),
                 (r"\d+", Number.Integer),
                 (words(_СТАЛІ, suffix=r"\b"), Keyword.Constant),
-                (words(tuple(sorted(ІМЕНА_NATIVE)), suffix=r"\b"), Name.Builtin),
+                (words(tuple(sorted(_ВБУДОВАНІ)), suffix=r"\b"), Name.Builtin),
                 (words(_КЛЮЧОВІ, suffix=r"\b"), Keyword),
                 (r"[^\W\d]\w*", Name),
                 (r"[+\-*/%=<>!]+", Operator),
