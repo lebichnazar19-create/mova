@@ -59,7 +59,10 @@ def округли(x, знаків=0):
     r = math.copysign(math.floor(abs(x) * множник + 0.5), x) / множник
     if знаків <= 0:
         return int(r)
-    return round(r, знаків)
+    r = round(r, знаків)
+    # цілий результат — ціле число, як і без знаків: округли(5, 3) -> 5,
+    # а не 5.0 (як робить ділення 6 / 2 -> 3 у VM)
+    return int(r) if r == int(r) else r
 
 
 def модуль(x):
