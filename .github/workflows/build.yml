@@ -128,3 +128,38 @@ jobs:
           name: мова-APK-${{ env.VERSIYA }}
           path: bin/*.apk
           if-no-files-found: error
+
+  # Книжка з документації — окрема швидка робота в тому ж workflow: PDF
+  # з ПІДРУЧНИК.md + ДОВІДНИК.md (tools/knyzhka.py) не залежить від
+  # збірки APK і з'являється в Artifacts навіть коли APK ще збирається.
+  knyzhka-pdf:
+    name: Книжка PDF
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # DejaVu — обов'язково: вбудовані шрифти PDF без кирилиці
+      - name: Шрифт DejaVu і fpdf2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu
+          pip install fpdf2
+
+      - name: Зібрати КНИЖКА.pdf
+        run: |
+          echo "VERSIYA=$(python3 -c 'from yadro.versiya import ВЕРСІЯ; print(ВЕРСІЯ)')" >> "$GITHUB_ENV"
+          python3 tools/knyzhka.py КНИЖКА.pdf
+          ls -la КНИЖКА.pdf
+
+      - name: Завантажити PDF в Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: книжка-PDF-${{ env.VERSIYA }}
+          path: КНИЖКА.pdf
+          if-no-files-found: error

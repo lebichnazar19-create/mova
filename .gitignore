@@ -11,3 +11,6 @@ __pycache__/
 застосунки/*/zapusk.py
 застосунки/*/vidzhety.py
 налаштування.json
+
+# Книжка з документації — збирається tools/knyzhka.py, у CI йде в Artifacts
+КНИЖКА.pdf
