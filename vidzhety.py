@@ -3,7 +3,7 @@
 креслення. Kivy-only, на комп'ютері без дисплея не імпортується."""
 
 from kivy.core.text import Label as CoreLabel
-from kivy.graphics import Color, Line, PopMatrix, PushMatrix, Rectangle, Rotate, Triangle
+from kivy.graphics import Color, Ellipse, Line, PopMatrix, PushMatrix, Rectangle, Rotate, Triangle
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -45,7 +45,8 @@ import polotno
 
 
 class ПолотноКреслення(StencilView):
-    """Полотно креслення з drafting.для_екрана(). Гортання одним пальцем,
+    """Полотно креслення з drafting.для_екрана() — і екрана бібліотеки
+    «екран» (biblioteky/ekran.py), той самий формат. Гортання одним пальцем,
     масштаб двома (щипок, ×1.1/÷1.1 за крок, з межами), «Вмістити все».
     Уся геометрія показу — в polotno.py (без Kivy): товщини ліній і
     шрифт сталі в пікселях, тому при масштабуванні лінії не стають
@@ -100,20 +101,26 @@ class ПолотноКреслення(StencilView):
         if self.креслення is None:
             return
         команди = polotno.команди(self.креслення, self.масштаб, self.зсув)
+        лінії = self.креслення["лінії"]
         with self.canvas:
             for к in команди:
                 тип = к["тип"]
                 if тип == "фон":
                     Color(*self._колір(к["колір"]))
                     Rectangle(pos=(к["x"], к["y"]), size=(к["ш"], к["в"]))
-                    Color(*self._колір(self.креслення["лінії"]))
-                elif тип == "лінія":
+                    continue
+                Color(*self._колір(к.get("колір") or лінії))   # колір фігури («екран») або ліній креслення
+                if тип == "лінія":
                     if к["штрих"]:
                         Line(points=к["точки"], width=1, dash_length=к["штрих"][0], dash_offset=к["штрих"][1])
                     else:
                         Line(points=к["точки"], width=к["ширина"], close=к["замкнена"], joint="miter")
                 elif тип == "заливка":
                     Triangle(points=к["точки"])
+                elif тип == "прямокутник":
+                    Rectangle(pos=(к["x"], к["y"]), size=(к["ш"], к["в"]))
+                elif тип == "круг":
+                    Ellipse(pos=(к["cx"] - к["r"], к["cy"] - к["r"]), size=(2 * к["r"], 2 * к["r"]))
                 elif тип == "дуга":
                     a, b = 90 - max(к["від"], к["до"]), 90 - min(к["від"], к["до"])
                     Line(circle=(к["cx"], к["cy"], к["r"], a, b), width=к["ширина"])
