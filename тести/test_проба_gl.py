@@ -156,3 +156,56 @@ def test_workflow_проби_збирає_gl_kub_в_артефакт():
     assert "cp proby/gl_kub.spec zbirka_gl/buildozer.spec" in текст
     assert 'hashFiles(\'proby/gl_kub.spec\')' in текст
     assert '- "proby/**"' in текст
+
+
+# ---- лог у файл ------------------------------------------------------------------
+
+def test_відкрити_лог_пише_в_усі_доступні_і_пропускає_недоступні(tmp_path, capsys):
+    а, б = tmp_path / "а" / "mova_gl.log", tmp_path / "mova_gl.log"
+    а.parent.mkdir()
+    немає = tmp_path / "немає_такої_теки" / "mova_gl.log"
+    assert g.відкрити_лог([str(а), str(немає), str(б)]) == [str(а), str(б)]
+    g.лог("крок 1")
+    for ф in (а, б):
+        текст = ф.read_text(encoding="utf-8")
+        assert "===== старт " in текст and "лог пишеться у: " in текст and "крок 1" in текст
+        assert "не вдалось відкрити " + str(немає) in текст
+    assert not немає.parent.exists()          # тек не створюємо
+    assert "крок 1" in capsys.readouterr().out  # і на stdout (лог Kivy/консоль)
+    g.відкрити_лог([])
+
+
+def test_записати_помилку_кладе_повний_traceback(tmp_path):
+    ф = tmp_path / "mova_gl.log"
+    g.відкрити_лог([str(ф)])
+    try:
+        raise RuntimeError("шейдер не зібрався")
+    except RuntimeError as п:
+        g.записати_помилку(п)
+    текст = ф.read_text(encoding="utf-8")
+    assert "ПОМИЛКА: Traceback" in текст and "RuntimeError: шейдер не зібрався" in текст
+    assert "test_проба_gl.py" in текст       # рядок файлу, де впало
+    g.відкрити_лог([])
+
+
+def test_кандидати_логу_на_компютері_і_на_android(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ANDROID_ARGUMENT", raising=False)
+    assert g.кандидати_логу() == [str(tmp_path / "mova_gl.log")]
+    monkeypatch.setenv("ANDROID_ARGUMENT", "/data/data/org.mova.probagl/files/app")
+    monkeypatch.setenv("EXTERNAL_STORAGE", "/storage/emulated/0")
+    к = g.кандидати_логу()   # без jnius на комп'ютері — без Android/data, але без падіння
+    assert к[:3] == ["/storage/emulated/0/mova_gl.log", "/storage/emulated/0/Download/mova_gl.log",
+                     "/storage/emulated/0/Documents/mova_gl.log"]
+    assert к[-1] == str(tmp_path / "mova_gl.log")
+
+
+def test_запуск_логує_кожен_крок_і_ловить_падіння():
+    текст = (КОРІНЬ / "proby" / "gl_kub.py").read_text(encoding="utf-8")
+    for крок in ('лог("старт proby/gl_kub.py")', 'лог("імпорт Kivy…")', "вікно створено", 'лог("компілюю шейдер")',
+                 'лог("шейдер зібрано")', "Mesh створено", 'лог("матриці задано")', 'лог("перший кадр намальовано")',
+                 'лог("on_start', "підчепити_лог_kivy()"):
+        assert крок in текст, крок
+    assert "except BaseException as п:" in текст and "записати_помилку(п)" in текст
+    # відкрити_лог() — до всього, ще до імпорту Kivy
+    assert текст.index("відкрити_лог()\n") < текст.index("запустити()\n")

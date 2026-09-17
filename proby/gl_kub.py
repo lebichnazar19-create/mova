@@ -13,6 +13,12 @@ main.py поруч із proby/gl_kub.spec і збирає артефакт «п�
 (тести/test_проба_gl.py) на комп'ютері без Kivy. Kivy імпортується
 лише всередині запустити(), тому модуль можна імпортувати будь-де.
 
+Лог: усе, що робить проба (старт, вікно, шейдер, Mesh, перший кадр) і
+traceback падіння пишуться у файл mova_gl.log — на телефоні у
+/sdcard, /sdcard/Download, /sdcard/Documents і Android/data/<пакет>/files
+(у ті, куди Android пустив без дозволів), на комп'ютері — у поточну
+теку. Туди ж іде лог самого Kivy.
+
 Три слова, без яких OpenGL не зрозуміти:
 
   Шейдер — маленька програма, яку виконує не процесор, а відеокарта,
@@ -38,6 +44,10 @@ main.py поруч із proby/gl_kub.spec і збирає артефакт «п�
 """
 
 import math
+import os
+import sys
+import time
+import traceback
 
 # ---- матриці ------------------------------------------------------------------
 #
@@ -212,9 +222,95 @@ void main() {
 """
 
 
+# ---- лог у файл ------------------------------------------------------------------
+#
+# На телефоні logcat з Termux не прочитати (Android не дає читати чужий
+# лог), тому проба сама пише, що робить, у файл на спільному сховищі.
+# Без спецдозволів (targetSdk 34) застосунок може писати не всюди, і де
+# саме — залежить від версії Android: /sdcard/mova_gl.log — лише на
+# старих; /sdcard/Download і /sdcard/Documents — на Android 11+ (файл
+# вважається «своїм» для застосунку); /sdcard/Android/data/<пакет>/files
+# — завжди, але на 11+ його не видно з Termux. Тому пробуємо всі
+# кандидати й пишемо кожен рядок в усі, що прийняли тестовий запис.
+
+ІМ_Я_ЛОГУ = "mova_gl.log"
+_ЛОГИ = []            # шляхи, куди пишемо
+
+
+def кандидати_логу():
+    """Шляхи для логу — від найзручнішого до запасного."""
+    шляхи = []
+    if "ANDROID_ARGUMENT" in os.environ:          # ми на Android (p4a)
+        сховище = os.environ.get("EXTERNAL_STORAGE", "/sdcard")
+        for тека in ("", "Download", "Documents"):
+            шляхи.append(os.path.join(сховище, тека, ІМ_Я_ЛОГУ))
+        try:                                       # /sdcard/Android/data/<пакет>/files
+            from jnius import autoclass, cast
+            активність = autoclass("org.kivy.android.PythonActivity").mActivity
+            контекст = cast("android.content.Context", активність)
+            зовнішня = контекст.getExternalFilesDir(None)
+            if зовнішня is not None:
+                шляхи.append(os.path.join(зовнішня.getAbsolutePath(), ІМ_Я_ЛОГУ))
+        except Exception:                          # без jnius — просто пропускаємо
+            pass
+    шляхи.append(os.path.join(os.getcwd(), ІМ_Я_ЛОГУ))   # завжди є куди
+    return шляхи
+
+
+def відкрити_лог(кандидати=None):
+    """Пробує кожен шлях; лишає ті, куди вдалось дописати. Повертає список
+    шляхів, що приймають запис (той самий, що й _ЛОГИ)."""
+    _ЛОГИ.clear()
+    заголовок = f"\n===== старт {time.strftime('%Y-%m-%d %H:%M:%S')} python {sys.version.split()[0]} =====\n"
+    невдалі = []
+    for шлях in (кандидати if кандидати is not None else кандидати_логу()):
+        try:                                       # теки не створюємо: нема — не наш шлях
+            with open(шлях, "a", encoding="utf-8") as ф:
+                ф.write(заголовок)
+            _ЛОГИ.append(шлях)
+        except Exception as п:                     # немає дозволу / теки — далі
+            невдалі.append(f"{шлях}: {п}")
+    if _ЛОГИ:
+        лог("лог пишеться у: " + ", ".join(_ЛОГИ))
+    for рядок in невдалі:
+        лог("не вдалось відкрити " + рядок)
+    return list(_ЛОГИ)
+
+
+def лог(повідомлення):
+    """Рядок із часом — у всі відкриті логи (кожен раз відкрити-дописати-
+    закрити, щоб при падінні нічого не лишилось у буфері) і на stdout."""
+    рядок = f"{time.strftime('%H:%M:%S')} {повідомлення}"
+    print(рядок, flush=True)
+    for шлях in _ЛОГИ:
+        try:
+            with open(шлях, "a", encoding="utf-8") as ф:
+                ф.write(рядок + "\n")
+        except Exception:
+            pass
+
+
+def записати_помилку(виняток):
+    """Повний traceback винятку — у лог."""
+    лог("ПОМИЛКА: " + "".join(traceback.format_exception(type(виняток), виняток, виняток.__traceback__)))
+
+
+def підчепити_лог_kivy():
+    """Kivy пише свій лог (зокрема помилки компіляції шейдера з відеокарти)
+    через logging — додаємо туди й наші файли."""
+    import logging
+    from kivy.logger import Logger
+    for шлях in _ЛОГИ:
+        обробник = logging.FileHandler(шлях, encoding="utf-8")
+        обробник.setFormatter(logging.Formatter("%(asctime)s [kivy] %(levelname)s: %(message)s", "%H:%M:%S"))
+        Logger.addHandler(обробник)
+    Logger.setLevel(logging.DEBUG)
+
+
 # ---- застосунок Kivy --------------------------------------------------------------
 
 def запустити():
+    лог("імпорт Kivy…")
     from kivy.app import App
     from kivy.clock import Clock
     from kivy.core.window import Window
@@ -222,6 +318,8 @@ def запустити():
     from kivy.graphics.opengl import GL_DEPTH_TEST, glDisable, glEnable
     from kivy.graphics.transformation import Matrix
     from kivy.uix.widget import Widget
+    підчепити_лог_kivy()
+    лог("Kivy імпортовано, вікно створено: %sx%s" % (Window.width, Window.height))
 
     def для_kivy(список16):
         """Наша матриця-список → kivy Matrix (той самий порядок по стовпцях)."""
@@ -234,11 +332,14 @@ def запустити():
             # RenderContext — власне полотно зі своїм шейдером; замість
             # вбудованого шейдера Kivy підставляємо наш. use_parent_*=False:
             # матриці Kivy для 2D-віджетів нам не потрібні, ми даємо свої.
+            лог("створюю RenderContext")
             self.canvas = RenderContext(use_parent_projection=False, use_parent_modelview=False)
+            лог("компілюю шейдер")
             self.canvas.shader.vs = ВЕРШИННИЙ
             self.canvas.shader.fs = ФРАГМЕНТНИЙ
             if not self.canvas.shader.success:
-                raise RuntimeError("шейдер не зібрався — дивись лог Kivy")
+                raise RuntimeError("шейдер не зібрався — дивись рядки [kivy] у логу")
+            лог("шейдер зібрано")
             super().__init__(**kwargs)
             self.поворот = множ(поворот_x(-25), поворот_y(35))   # щоб одразу було видно три грані
             with self.canvas:
@@ -248,9 +349,16 @@ def запустити():
                 # Mesh — буфер вершин + індекси на відеокарті
                 self.mesh = Mesh(vertices=ВЕРШИНИ, indices=ІНДЕКСИ, fmt=ФОРМАТ, mode="triangles")
                 Callback(lambda *_: glDisable(GL_DEPTH_TEST))
+            лог("Mesh створено: %d вершин, %d індексів" % (len(ВЕРШИНИ) // 6, len(ІНДЕКСИ)))
             self._оновити_модель()
             Window.bind(on_resize=lambda *_: self._оновити_проекцію())
             Clock.schedule_once(lambda *_: self._оновити_проекцію(), 0)
+            лог("матриці задано")
+            Window.bind(on_draw=self._перший_кадр)
+
+        def _перший_кадр(self, *_):
+            лог("перший кадр намальовано")
+            Window.unbind(on_draw=self._перший_кадр)
 
         def _оновити_проекцію(self):
             self.canvas["proj_mat"] = для_kivy(матриця_проекції(Window.width, Window.height))
@@ -279,11 +387,22 @@ def запустити():
         title = "Проба GL: куб"
 
         def build(self):
+            лог("build()")
             Window.clearcolor = (0.08, 0.08, 0.1, 1)
             return Куб()
 
+        def on_start(self):
+            лог("on_start: застосунок працює, тягни пальцем")
+
     ПробаGL().run()
+    лог("вихід")
 
 
 if __name__ == "__main__":
-    запустити()
+    відкрити_лог()
+    лог("старт proby/gl_kub.py")
+    try:
+        запустити()
+    except BaseException as п:       # BaseException — щоб не пропустити SystemExit з Kivy
+        записати_помилку(п)
+        raise
