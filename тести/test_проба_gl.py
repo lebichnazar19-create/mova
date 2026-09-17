@@ -131,3 +131,28 @@ def test_шейдери_збираються_як_glsl_es_100(tmp_path):
     f.write_text("#version 100\n" + g.ФРАГМЕНТНИЙ, encoding="utf-8")
     р = subprocess.run(["glslangValidator", str(v), str(f)], capture_output=True, text=True)
     assert р.returncode == 0, р.stdout + р.stderr
+
+
+# ---- збірка APK ------------------------------------------------------------------
+
+def test_spec_проби_узгоджений_з_головним():
+    import configparser
+    проба, головний = configparser.ConfigParser(), configparser.ConfigParser()
+    проба.read(КОРІНЬ / "proby" / "gl_kub.spec", encoding="utf-8")
+    головний.read(КОРІНЬ / "buildozer.spec", encoding="utf-8")
+    assert проба["app"]["package.name"] == "probagl" and проба["app"]["title"] == "Проба GL"
+    assert проба["app"]["requirements"] == "python3,kivy==2.3.0"
+    # ті самі p4a/NDK/API — спільний кеш SDK на раннері
+    for ключ in ("p4a.branch", "android.ndk", "android.api", "android.build_tools_version", "android.archs"):
+        assert проба["app"][ключ] == головний["app"][ключ], ключ
+    # проба не потрапляє в головний APK
+    assert "proby" in головний["app"]["source.exclude_dirs"].split(",")
+
+
+def test_workflow_проби_збирає_gl_kub_в_артефакт():
+    текст = (КОРІНЬ / ".github" / "workflows" / "proby.yml").read_text(encoding="utf-8")
+    assert "name: проба-GL-APK" in текст
+    assert "cp proby/gl_kub.py zbirka_gl/main.py" in текст
+    assert "cp proby/gl_kub.spec zbirka_gl/buildozer.spec" in текст
+    assert 'hashFiles(\'proby/gl_kub.spec\')' in текст
+    assert '- "proby/**"' in текст

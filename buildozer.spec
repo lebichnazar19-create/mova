@@ -20,7 +20,7 @@ source.include_exts = py,png,jpg,kv,atlas,мова,bin
 
 # Не тягнути в APK нічого зайвого: git-метадані, кеші тестів, байткод,
 # готові білди Buildozer з попередніх запусків.
-source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin,tools
+source.exclude_dirs = .git,.github,.pytest_cache,__pycache__,тести,приклади,застосунки,.buildozer,bin,tools,proby
 source.exclude_patterns = *.pyc,*.байт,*.spec.local
 
 # Версія — з yadro/versiya.py (єдине джерело; там ВЕРСІЯ = "…")
