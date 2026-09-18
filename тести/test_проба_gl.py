@@ -115,22 +115,81 @@ def test_матриця_моделі_відсуває_куб_від_камери
 
 # ---- шейдери ---------------------------------------------------------------------
 
+KIVY_ТИПОВИЙ_ФРАГМЕНТНИЙ = """
+#ifdef GL_ES
+precision highp float;
+#endif
+varying vec4 frag_color;
+varying vec2 tex_coord0;
+uniform sampler2D texture0;
+void main (void) { gl_FragColor = frag_color * texture2D(texture0, tex_coord0); }
+"""
+
+
 def test_шейдери_узгоджені_з_форматом_буфера():
     for назва, _, _ in g.ФОРМАТ:
         assert f"attribute vec3 {назва.decode()}" in g.ВЕРШИННИЙ
     assert "gl_Position" in g.ВЕРШИННИЙ and "uniform mat4 proj_mat" in g.ВЕРШИННИЙ
     assert "uniform mat4 model_mat" in g.ВЕРШИННИЙ
     assert "gl_FragColor" in g.ФРАГМЕНТНИЙ and "precision mediump float" in g.ФРАГМЕНТНИЙ
-    assert "varying vec3 frag_color" in g.ВЕРШИННИЙ and "varying vec3 frag_color" in g.ФРАГМЕНТНИЙ
+    assert g.узгодженість_шейдерів() == []
 
 
-@pytest.mark.skipif(shutil.which("glslangValidator") is None, reason="немає glslangValidator")
-def test_шейдери_збираються_як_glsl_es_100(tmp_path):
+def test_узгодженість_ловить_розбіжність_varying_імена_kivy_і_precision():
+    assert g.узгодженість_шейдерів(g.ВЕРШИННИЙ, g.ФРАГМЕНТНИЙ.replace("vec3 kolir", "vec4 kolir")) == [
+        "varying kolir: у вершинному vec3, у фрагментному vec4"]
+    assert g.узгодженість_шейдерів(g.ВЕРШИННИЙ, g.ФРАГМЕНТНИЙ.replace("varying vec3 kolir;", "varying vec3 kolir2;")) == [
+        "varying kolir2 є у фрагментному, але не у вершинному",
+        "varying kolir є у вершинному, але не у фрагментному"]
+    # саме так проба впала на телефоні: ім'я як у Kivy, тип інший
+    проблеми = g.узгодженість_шейдерів(g.ВЕРШИННИЙ.replace("kolir", "frag_color"),
+                                       g.ФРАГМЕНТНИЙ.replace("kolir", "frag_color").replace("precision", ""))
+    assert any("frag_color збігається з типовим шейдером Kivy" in п for п in проблеми)
+    assert "у фрагментному немає precision (обов'язково в GLSL ES 1.00)" in проблеми
+    assert g.узгодженість_шейдерів(g.ВЕРШИННИЙ.replace("attribute vec3 v_color", "attribute vec4 v_color"), g.ФРАГМЕНТНИЙ) == [
+        "attribute v_color має бути vec3 у вершинному"]
+
+
+def test_наші_varying_не_збігаються_з_типовими_kivy():
+    for ім_я in g.KIVY_VARYING:
+        assert ім_я not in g.ВЕРШИННИЙ and ім_я not in g.ФРАГМЕНТНИЙ
+
+
+def test_render_context_отримує_обидва_шейдери_разом():
+    """shader.vs = … лінкує наш вершинний з типовим фрагментним Kivy — не можна."""
+    текст = (КОРІНЬ / "proby" / "gl_kub.py").read_text(encoding="utf-8")
+    assert "vs=ВЕРШИННИЙ, fs=ФРАГМЕНТНИЙ" in текст
+    assert "shader.vs =" not in текст and "shader.fs =" not in текст
+    # info log драйвера — у наш лог, для компіляції обох і для зв'язування
+    for виклик in ("glGetShaderInfoLog", "glGetProgramInfoLog", "GL_LINK_STATUS", "GL_COMPILE_STATUS"):
+        assert виклик in текст, виклик
+
+
+def _glslang(tmp_path, вершинний, фрагментний):
     v, f = tmp_path / "k.vert", tmp_path / "k.frag"
-    v.write_text("#version 100\n" + g.ВЕРШИННИЙ, encoding="utf-8")
-    f.write_text("#version 100\n" + g.ФРАГМЕНТНИЙ, encoding="utf-8")
-    р = subprocess.run(["glslangValidator", str(v), str(f)], capture_output=True, text=True)
+    v.write_text("#version 100\n" + вершинний, encoding="utf-8")
+    f.write_text("#version 100\n" + фрагментний, encoding="utf-8")
+    return subprocess.run(["glslangValidator", "-l", str(v), str(f)], capture_output=True, text=True)
+
+
+немає_glslang = pytest.mark.skipif(shutil.which("glslangValidator") is None, reason="немає glslangValidator")
+
+
+@немає_glslang
+def test_обидва_шейдери_звязуються_разом_glsl_es_100(tmp_path):
+    """-l: не по одному, а лінкування вершинного з фрагментним — саме тут
+    ловляться розбіжності varying, які CI раніше пропускав."""
+    р = _glslang(tmp_path, g.ВЕРШИННИЙ, g.ФРАГМЕНТНИЙ)
     assert р.returncode == 0, р.stdout + р.stderr
+
+
+@немає_glslang
+def test_glslang_справді_ловить_розбіжність_і_пастку_kivy(tmp_path):
+    р = _glslang(tmp_path, g.ВЕРШИННИЙ, g.ФРАГМЕНТНИЙ.replace("vec3 kolir", "vec4 kolir").replace("vec4(kolir, 1.0)", "kolir"))
+    assert р.returncode != 0 and "Types must match" in р.stdout
+    # старий варіант проби (varying vec3 frag_color) з типовим фрагментним Kivy
+    р = _glslang(tmp_path, g.ВЕРШИННИЙ.replace("kolir", "frag_color"), KIVY_ТИПОВИЙ_ФРАГМЕНТНИЙ)
+    assert р.returncode != 0 and "frag_color" in р.stdout
 
 
 # ---- збірка APK ------------------------------------------------------------------
@@ -202,8 +261,8 @@ def test_кандидати_логу_на_компютері_і_на_android(mon
 
 def test_запуск_логує_кожен_крок_і_ловить_падіння():
     текст = (КОРІНЬ / "proby" / "gl_kub.py").read_text(encoding="utf-8")
-    for крок in ('лог("старт proby/gl_kub.py")', 'лог("імпорт Kivy…")', "вікно створено", 'лог("компілюю шейдер")',
-                 'лог("шейдер зібрано")', "Mesh створено", 'лог("матриці задано")', 'лог("перший кадр намальовано")',
+    for крок in ('лог("старт proby/gl_kub.py")', 'лог("імпорт Kivy…")', "вікно створено", 'RenderContext з обома шейдерами',
+                 "шейдер зібрано і зв'язано", "Mesh створено", 'лог("матриці задано")', 'лог("перший кадр намальовано")',
                  'лог("on_start', "підчепити_лог_kivy()"):
         assert крок in текст, крок
     assert "except BaseException as п:" in текст and "записати_помилку(п)" in текст

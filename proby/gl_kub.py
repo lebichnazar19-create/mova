@@ -195,16 +195,27 @@ def матриця_проекції(ширина, висота):
 # uniform — спільне для всіх вершин (наші матриці, задаються з Python);
 # varying — передається з вершинного шейдера у фрагментний, і відеокарта
 # сама плавно змішує його між вершинами трикутника.
+#
+# Два шейдери зв'язуються (link) в одну програму, і тут є пастка, на якій
+# проба впала на телефоні: кожна varying має бути оголошена в обох
+# шейдерах з тим самим ім'ям І типом. Типовий шейдер Kivy має
+# «varying vec4 frag_color», а Kivy, щойно присвоїти shader.vs, лінкує
+# наш вершинний зі СВОЇМ типовим фрагментним — з «vec3 frag_color» це
+# «Shader did not link». Тому: (а) у нас своє ім'я varying, якого в
+# Kivy нема, (б) обидва шейдери передаються в RenderContext разом.
+
+# varying, що їх оголошує типовий шейдер Kivy — наші імена не мають збігатись
+KIVY_VARYING = ("frag_color", "tex_coord0")
 
 ВЕРШИННИЙ = """
 attribute vec3 v_pos;        /* положення вершини з буфера */
 attribute vec3 v_color;      /* її колір з буфера */
 uniform mat4 model_mat;      /* поворот + зсув куба */
 uniform mat4 proj_mat;       /* матриця проекції */
-varying vec3 frag_color;     /* колір — далі у фрагментний шейдер */
+varying vec3 kolir;          /* колір — далі у фрагментний шейдер */
 
 void main() {
-    frag_color = v_color;
+    kolir = v_color;
     /* спершу модель (повернути, відсунути), потім проекція (перспектива) */
     gl_Position = proj_mat * model_mat * vec4(v_pos, 1.0);
 }
@@ -214,12 +225,46 @@ void main() {
 #ifdef GL_ES
 precision mediump float;     /* на Android точність треба вказати явно */
 #endif
-varying vec3 frag_color;     /* прийшов з вершинного, вже змішаний */
+varying vec3 kolir;          /* прийшов з вершинного, вже змішаний; тип і ім'я — як там */
 
 void main() {
-    gl_FragColor = vec4(frag_color, 1.0);   /* колір пікселя, непрозорий */
+    gl_FragColor = vec4(kolir, 1.0);        /* колір пікселя, непрозорий */
 }
 """
+
+
+def _оголошення(шейдер, слово):
+    """{ім'я: тип} для рядків «слово тип ім'я;» у тексті шейдера."""
+    return {ім_я.rstrip(";"): тип for рядок in шейдер.splitlines()
+            for частини in [рядок.strip().split()] if len(частини) >= 3 and частини[0] == слово
+            for тип, ім_я in [(частини[1], частини[2])]}
+
+
+def узгодженість_шейдерів(вершинний=None, фрагментний=None):
+    """Список проблем, через які пара шейдерів не зв'яжеться (порожній —
+    усе гаразд). Перевіряється на комп'ютері без відеокарти."""
+    вершинний = ВЕРШИННИЙ if вершинний is None else вершинний
+    фрагментний = ФРАГМЕНТНИЙ if фрагментний is None else фрагментний
+    v, f = _оголошення(вершинний, "varying"), _оголошення(фрагментний, "varying")
+    проблеми = []
+    for ім_я, тип in f.items():
+        if ім_я not in v:
+            проблеми.append(f"varying {ім_я} є у фрагментному, але не у вершинному")
+        elif v[ім_я] != тип:
+            проблеми.append(f"varying {ім_я}: у вершинному {v[ім_я]}, у фрагментному {тип}")
+    for ім_я in v:
+        if ім_я not in f:
+            проблеми.append(f"varying {ім_я} є у вершинному, але не у фрагментному")
+    for ім_я in set(v) | set(f):
+        if ім_я in KIVY_VARYING:
+            проблеми.append(f"varying {ім_я} збігається з типовим шейдером Kivy — при лінкуванні з ним типи можуть не зійтись")
+    атрибути = _оголошення(вершинний, "attribute")
+    for назва, розмір, _ in ФОРМАТ:
+        if атрибути.get(назва.decode()) != f"vec{розмір}":
+            проблеми.append(f"attribute {назва.decode()} має бути vec{розмір} у вершинному")
+    if "precision" not in фрагментний:
+        проблеми.append("у фрагментному немає precision (обов'язково в GLSL ES 1.00)")
+    return проблеми
 
 
 # ---- лог у файл ------------------------------------------------------------------
@@ -315,11 +360,40 @@ def запустити():
     from kivy.clock import Clock
     from kivy.core.window import Window
     from kivy.graphics import Callback, Mesh, RenderContext
+    from kivy.graphics import opengl as gl
     from kivy.graphics.opengl import GL_DEPTH_TEST, glDisable, glEnable
     from kivy.graphics.transformation import Matrix
     from kivy.uix.widget import Widget
     підчепити_лог_kivy()
     лог("Kivy імпортовано, вікно створено: %sx%s" % (Window.width, Window.height))
+
+    def _ціле(значення):
+        """Обгортка Kivy повертає число або список з одного числа."""
+        return int(значення[0]) if isinstance(значення, (list, tuple)) else int(значення)
+
+    def перевірити_на_відеокарті():
+        """Скомпілювати й зв'язати обидва шейдери сирими GL-викликами — щоб
+        info log драйвера (що саме не так) потрапив у наш лог: Kivy його
+        не показує. Повертає істину, якщо програма зв'язалась."""
+        гаразд = True
+        програма = gl.glCreateProgram()
+        for назва, тип, текст in (("вершинний", gl.GL_VERTEX_SHADER, ВЕРШИННИЙ),
+                                   ("фрагментний", gl.GL_FRAGMENT_SHADER, ФРАГМЕНТНИЙ)):
+            шейдер = gl.glCreateShader(тип)
+            gl.glShaderSource(шейдер, текст.encode("utf-8"))
+            gl.glCompileShader(шейдер)
+            зібрано = _ціле(gl.glGetShaderiv(шейдер, gl.GL_COMPILE_STATUS))
+            повідомлення = gl.glGetShaderInfoLog(шейдер, 4096).decode("utf-8", "replace").strip()
+            лог(f"GPU {назва} шейдер: {'скомпільовано' if зібрано else 'НЕ скомпільовано'}; info log: <{повідомлення}>")
+            гаразд = гаразд and bool(зібрано)
+            gl.glAttachShader(програма, шейдер)
+        gl.glLinkProgram(програма)
+        зв_язано = _ціле(gl.glGetProgramiv(програма, gl.GL_LINK_STATUS))
+        повідомлення = gl.glGetProgramInfoLog(програма, 4096).decode("utf-8", "replace").strip()
+        стан = "звʼязано" if зв_язано else "НЕ звʼязано"
+        лог(f"GPU програма: {стан}; info log: <{повідомлення}>")
+        gl.glDeleteProgram(програма)
+        return гаразд and bool(зв_язано)
 
     def для_kivy(список16):
         """Наша матриця-список → kivy Matrix (той самий порядок по стовпцях)."""
@@ -332,14 +406,23 @@ def запустити():
             # RenderContext — власне полотно зі своїм шейдером; замість
             # вбудованого шейдера Kivy підставляємо наш. use_parent_*=False:
             # матриці Kivy для 2D-віджетів нам не потрібні, ми даємо свої.
-            лог("створюю RenderContext")
-            self.canvas = RenderContext(use_parent_projection=False, use_parent_modelview=False)
-            лог("компілюю шейдер")
-            self.canvas.shader.vs = ВЕРШИННИЙ
-            self.canvas.shader.fs = ФРАГМЕНТНИЙ
+            проблеми = узгодженість_шейдерів()
+            лог("перевірка тексту шейдерів: " + ("; ".join(проблеми) or "узгоджені"))
+            try:
+                на_gpu = перевірити_на_відеокарті()
+            except Exception as п:                  # обгортка GL повелась не так — не наша тема
+                лог(f"перевірку на відеокарті не вдалось виконати: {п!r}")
+                на_gpu = None
+            # Обидва шейдери — одразу в конструктор: тоді Kivy не лінкує
+            # наш вершинний зі своїм типовим фрагментним (див. коментар над
+            # KIVY_VARYING).
+            лог("створюю RenderContext з обома шейдерами (компіляція + зв'язування)")
+            self.canvas = RenderContext(use_parent_projection=False, use_parent_modelview=False,
+                                        vs=ВЕРШИННИЙ, fs=ФРАГМЕНТНИЙ)
             if not self.canvas.shader.success:
-                raise RuntimeError("шейдер не зібрався — дивись рядки [kivy] у логу")
-            лог("шейдер зібрано")
+                raise RuntimeError("шейдер не зібрався (перевірка на відеокарті: %s) — дивись info log вище"
+                                   % {True: "пройшла", False: "не пройшла", None: "не виконалась"}[на_gpu])
+            лог("шейдер зібрано і зв'язано")
             super().__init__(**kwargs)
             self.поворот = множ(поворот_x(-25), поворот_y(35))   # щоб одразу було видно три грані
             with self.canvas:
