@@ -196,7 +196,7 @@ class ПолотноКреслення(StencilView):
         self.зсув = (0.0, 0.0)
         self._дотики = {}          # uid -> (x, y)
         self._щипок = None         # (масштаб_старт, відстань_старт, зсув_старт, центр_старт)
-        self._текстури = {}        # текст -> texture (шрифт сталий, тож кешується)
+        self._текстури = {}        # (текст, розмір шрифту) -> texture
         self._вміщено = False
         self.bind(size=self._при_зміні_розміру, pos=self._при_зміні_розміру)
 
@@ -225,12 +225,17 @@ class ПолотноКреслення(StencilView):
         hex_ = hex_.lstrip("#")
         return tuple(int(hex_[i:i + 2], 16) / 255 for i in (0, 2, 4)) + (1,)
 
-    def _текстура(self, текст):
-        т = self._текстури.get(текст)
+    def _текстура(self, текст, розмір=polotno.ШРИФТ_PX):
+        розмір = max(1, int(round(розмір)))
+        ключ = (текст, розмір)
+        т = self._текстури.get(ключ)
         if т is None:
-            мітка = CoreLabel(text=текст, font_size=polotno.ШРИФТ_PX, font_name=МОНО)
+            if len(self._текстури) >= 200:
+                # анімований напис (лічильник) щокадру дає новий текст
+                self._текстури.clear()
+            мітка = CoreLabel(text=текст, font_size=розмір, font_name=МОНО)
             мітка.refresh()
-            т = self._текстури[текст] = мітка.texture
+            т = self._текстури[ключ] = мітка.texture
         return т
 
     def _перемалювати(self):
@@ -262,12 +267,17 @@ class ПолотноКреслення(StencilView):
                     a, b = 90 - max(к["від"], к["до"]), 90 - min(к["від"], к["до"])
                     Line(circle=(к["cx"], к["cy"], к["r"], a, b), width=к["ширина"])
                 elif тип == "текст":
-                    т = self._текстура(к["текст"])
+                    if not к["текст"]:
+                        continue
+                    т = self._текстура(к["текст"], к["розмір"])
+                    if т is None:      # напис із самих пробілів
+                        continue
                     x, y = к["x"], к["y"]
                     зсув_x = -т.width / 2 if к["вирівнювання"] == "середина" else 0
+                    зсув_y = -т.height if к.get("опора") == "верх" else -т.height / 2
                     PushMatrix()
                     Rotate(angle=к["кут"], origin=(x, y))
-                    Rectangle(texture=т, pos=(x + зсув_x, y - т.height / 2), size=т.size)
+                    Rectangle(texture=т, pos=(x + зсув_x, y + зсув_y), size=т.size)
                     PopMatrix()
 
     # ---- дотики: один палець — гортання, два — масштаб ----------------------
