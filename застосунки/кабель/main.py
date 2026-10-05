@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Запускач застосунку «кабель»: виконує програма.мова (мова «Мова») без
-редактора. Згенеровано zastosunky.py; ядро (yadro/, zapusk.py, vidzhety.py)
+редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py)
 докладає workflow під час збірки APK."""
 
 import sys
@@ -70,16 +70,13 @@ class Застосунок(App):
         self._панель_креслення.add_widget(self._полотно)
         корінь.add_widget(self._низ)
 
-        # рядок вводу для «питай»
+        # рядок вводу для «запитай» — видно лише поки програма чекає на відповідь
         self._ряд_вводу = BoxLayout(orientation="vertical", size_hint_y=None, height=0, opacity=0, spacing=dp(2))
-        self._запит = Label(text="", size_hint_y=None, height=dp(22), halign="left", font_size=sp(14), color=(0.2, 0.45, 0.2, 1))
-        self._запит.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
         ряд2 = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(4))
         self._поле = TextInput(multiline=False, font_name=МОНО, font_size=sp(15))
         self._поле.bind(on_text_validate=self._надіслати)
         ряд2.add_widget(self._поле)
-        ряд2.add_widget(Button(text="Надіслати", size_hint_x=None, width=dp(120), on_release=self._надіслати))
-        self._ряд_вводу.add_widget(self._запит)
+        ряд2.add_widget(Button(text="Далі", size_hint_x=None, width=dp(80), on_release=self._надіслати))
         self._ряд_вводу.add_widget(ряд2)
         корінь.add_widget(self._ряд_вводу)
 
@@ -116,6 +113,7 @@ class Застосунок(App):
                 код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
                 питай=self._питай, кнопка=self._додати_кнопку,
                 оновити_вивід=self._оновити_вивід, при_кресленні=self._при_кресленні,
+                розмір_екрана=self._розмір_екрана,
             )
         except Exception:
             текст = "Внутрішня помилка:\n" + traceback.format_exc()
@@ -145,7 +143,7 @@ class Застосунок(App):
     def _оновити_вивід(self, текст):
         Clock.schedule_once(lambda dt: setattr(self.вивід, "text", текст), 0)
 
-    # ---- питай -------------------------------------------------------------
+    # ---- запитай (запитання вже у виводі — тут лише поле й «Далі») -----------
 
     def _питай(self, запит):
         from yadro.vm import ВиконанняЗупинено
@@ -159,11 +157,11 @@ class Застосунок(App):
         return self._відповідь or ""
 
     def _показати_ввід(self, запит):
-        self._запит.text = запит.strip() or "Введи значення:"
         self._поле.text = ""
-        self._ряд_вводу.height = dp(68)
+        self._ряд_вводу.height = dp(44)
         self._ряд_вводу.opacity = 1
         self._поле.focus = True
+        Clock.schedule_once(lambda dt: setattr(self._прокрутка_виводу, "scroll_y", 0), 0.1)
 
     def _сховати_ввід(self):
         self._ряд_вводу.height = 0
@@ -192,7 +190,13 @@ class Застосунок(App):
         self._прокрутка_кнопок.height = 0
         self._прокрутка_кнопок.opacity = 0
 
-    # ---- креслення ----------------------------------------------------------
+    # ---- полотно: креслення й бібліотека «екран» ------------------------------
+
+    def _розмір_екрана(self):
+        """Розмір полотна в пікселях для ширина()/висота() бібліотеки «екран»:
+        нижня частина екрана без ряду кнопок над полотном (полотно ще може
+        бути не показане, тож беремо місце, яке воно займе)."""
+        return int(self._низ.width), int(max(self._низ.height - dp(36), 1))
 
     def _при_кресленні(self, креслення):
         def показати(dt):
