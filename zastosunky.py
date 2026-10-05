@@ -28,6 +28,12 @@ from yadro.versiya import ВЕРСІЯ, числова_версія
 ФАЙЛ_ПРОГРАМИ = "програма.вуж"
 # застосунки, зроблені до перейменування мови на «Вуж», — теж збираються
 СТАРИЙ_ФАЙЛ_ПРОГРАМИ = "програма.мова"
+# Під цим ім'ям програма лежить усередині APK. Розпаковувач
+# python-for-android на телефоні (jtar) читає імена файлів з архіву побайтно
+# й кириличні псує: «програма.вуж» на пристрої опиняється під зіпсованим
+# ім'ям, і запускач її не знаходить (FileNotFoundError). Тому перед збіркою
+# програму копіюють під латинське ім'я — підготувати_до_збірки().
+ФАЙЛ_У_ЗАСТОСУНКУ = "programa.vuzh"
 ФАЙЛИ_ЯДРА = ("yadro", "biblioteky", "zapusk.py", "vidzhety.py", "polotno.py", "vyvid.py")  # докладає workflow при збірці
 
 _ЗАБОРОНЕНО_В_НАЗВІ = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -124,7 +130,7 @@ title = {назва}
 package.name = {слаг}
 package.domain = org.vuzh
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,вуж
+source.include_exts = py,png,jpg,kv,atlas,вуж,vuzh
 source.exclude_dirs = __pycache__,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт
 version = {версія}
@@ -148,7 +154,8 @@ log_level = 2
 ЗАПУСКАЧ = '''#!/usr/bin/env python3
 """Запускач застосунку «{назва}»: виконує програма.вуж (мова «Вуж») без
 редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py, polotno.py, vyvid.py)
-докладає workflow під час збірки APK."""
+докладає workflow під час збірки APK. В APK програма лежить під латинським
+ім'ям programa.vuzh: кириличні імена файлів розпаковувач на телефоні псує."""
 
 import sys
 import threading
@@ -160,7 +167,19 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 НАЗВА = {назва!r}
-ФАЙЛ_ПРОГРАМИ = "програма.вуж"
+# де шукати програму: латинське ім'я з APK, далі — як у теці застосунку
+# (запуск на комп'ютері) і стара назва, з часів до перейменування мови
+ФАЙЛИ_ПРОГРАМИ = ("programa.vuzh", "програма.вуж", "програма.мова")
+
+
+def прочитати_програму(тека):
+    for імʼя in ФАЙЛИ_ПРОГРАМИ:
+        файл = Path(тека) / імʼя
+        if файл.is_file():
+            return файл.read_text(encoding="utf-8")
+    raise FileNotFoundError(
+        "Не знайдено файл програми (" + ", ".join(ФАЙЛИ_ПРОГРАМИ) + ") у теці " + str(тека)
+        + ". Є: " + ", ".join(sorted(п.name for п in Path(тека).iterdir())))
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -257,7 +276,7 @@ class Застосунок(App):
     def _у_потоці(self):
         try:
             from zapusk import виконати_код
-            код = (сюди / ФАЙЛ_ПРОГРАМИ).read_text(encoding="utf-8")
+            код = прочитати_програму(сюди)
             текст, успіх = виконати_код(
                 код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
                 питай=self._питай, кнопка=self._додати_кнопку,
@@ -413,6 +432,40 @@ def створити_застосунок(корінь, назва, код, ве
     return тека, list(файли)
 
 
+def підготувати_до_збірки(тека, назва=None):
+    """Довести теку застосунку (копію, з якої збирається APK) до ладу перед
+    buildozer: програма — під латинським ім'ям ФАЙЛ_У_ЗАСТОСУНКУ, його
+    розширення — в source.include_exts, а запускач, згенерований до цього
+    виправлення (читає лише кириличне ім'я), замінюється свіжим. Так само
+    збираються й давні теки з програма.мова. Повертає список зробленого."""
+    тека = Path(тека)
+    назва = безпечна_назва(назва or тека.name)
+    джерело = next((тека / ф for ф in (ФАЙЛ_ПРОГРАМИ, СТАРИЙ_ФАЙЛ_ПРОГРАМИ) if (тека / ф).is_file()), None)
+    if джерело is None:
+        raise ПомилкаЗастосунку(f"У теці {тека} немає ні {ФАЙЛ_ПРОГРАМИ}, ні {СТАРИЙ_ФАЙЛ_ПРОГРАМИ}.")
+    зроблено = []
+    (тека / ФАЙЛ_У_ЗАСТОСУНКУ).write_bytes(джерело.read_bytes())
+    зроблено.append(f"{джерело.name} -> {ФАЙЛ_У_ЗАСТОСУНКУ}")
+    розширення = ФАЙЛ_У_ЗАСТОСУНКУ.rsplit(".", 1)[1]
+    spec = тека / "buildozer.spec"
+    if spec.is_file():
+        текст = spec.read_text(encoding="utf-8")
+
+        def додати(м):
+            наявні = [р.strip() for р in м.group(1).split(",")]
+            return м.group(0) if розширення in наявні else м.group(0).rstrip() + "," + розширення
+
+        новий = re.sub(r"^source\.include_exts = (.*)$", додати, текст, flags=re.M)
+        if новий != текст:
+            spec.write_text(новий, encoding="utf-8")
+            зроблено.append(f"buildozer.spec: source.include_exts + {розширення}")
+    запускач = тека / "main.py"
+    if not запускач.is_file() or ФАЙЛ_У_ЗАСТОСУНКУ not in запускач.read_text(encoding="utf-8"):
+        запускач.write_text(ЗАПУСКАЧ.format(назва=назва), encoding="utf-8")
+        зроблено.append("main.py: свіжий запускач")
+    return зроблено
+
+
 def список_застосунків(корінь):
     тека = Path(корінь) / ТЕКА
     if not тека.is_dir():
@@ -427,6 +480,11 @@ def шляхи_для_публікації(назва, файли):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--до-збірки":
+        # python3 zastosunky.py --до-збірки тека_копії [назва] — кличе zastosunky.yml
+        for _крок in підготувати_до_збірки(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None):
+            print(_крок)
+        sys.exit(0)
     if len(sys.argv) < 3:
         print("Використання: python3 zastosunky.py Назва програма.вуж [корінь_репо]")
         sys.exit(2)

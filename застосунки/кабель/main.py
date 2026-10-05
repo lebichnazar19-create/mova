@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Запускач застосунку «кабель»: виконує програма.вуж (мова «Вуж») без
-редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py)
-докладає workflow під час збірки APK."""
+редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py, polotno.py, vyvid.py)
+докладає workflow під час збірки APK. В APK програма лежить під латинським
+ім'ям programa.vuzh: кириличні імена файлів розпаковувач на телефоні псує."""
 
 import sys
 import threading
@@ -13,7 +14,19 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 НАЗВА = 'кабель'
-ФАЙЛ_ПРОГРАМИ = "програма.вуж"
+# де шукати програму: латинське ім'я з APK, далі — як у теці застосунку
+# (запуск на комп'ютері) і стара назва, з часів до перейменування мови
+ФАЙЛИ_ПРОГРАМИ = ("programa.vuzh", "програма.вуж", "програма.мова")
+
+
+def прочитати_програму(тека):
+    for імʼя in ФАЙЛИ_ПРОГРАМИ:
+        файл = Path(тека) / імʼя
+        if файл.is_file():
+            return файл.read_text(encoding="utf-8")
+    raise FileNotFoundError(
+        "Не знайдено файл програми (" + ", ".join(ФАЙЛИ_ПРОГРАМИ) + ") у теці " + str(тека)
+        + ". Є: " + ", ".join(sorted(п.name for п in Path(тека).iterdir())))
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -110,7 +123,7 @@ class Застосунок(App):
     def _у_потоці(self):
         try:
             from zapusk import виконати_код
-            код = (сюди / ФАЙЛ_ПРОГРАМИ).read_text(encoding="utf-8")
+            код = прочитати_програму(сюди)
             текст, успіх = виконати_код(
                 код, при_старті=self._запамʼятати_вм, тека=self.user_data_dir,
                 питай=self._питай, кнопка=self._додати_кнопку,

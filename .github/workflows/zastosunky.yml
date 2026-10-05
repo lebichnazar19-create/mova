@@ -16,6 +16,7 @@ on:
       - "vidzhety.py"
       - "polotno.py"
       - "vyvid.py"
+      - "zastosunky.py"
       - ".github/workflows/zastosunky.yml"
   workflow_dispatch: {}
 
@@ -114,6 +115,12 @@ jobs:
           rm -rf "$BUILD_DIR"
           cp -r "застосунки/$APP" "$BUILD_DIR"
           cp -r yadro biblioteky zapusk.py vidzhety.py polotno.py vyvid.py "$BUILD_DIR/"
+          # Програма в APK — під латинським ім'ям programa.vuzh: кириличні
+          # імена файлів (програма.вуж) розпаковувач p4a на телефоні псує,
+          # і запускач не знаходить програму (FileNotFoundError).
+          python3 zastosunky.py --до-збірки "$BUILD_DIR" "$APP"
+          test -s "$BUILD_DIR/programa.vuzh"
+          grep -q "^source.include_exts = .*vuzh" "$BUILD_DIR/buildozer.spec"
           echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_ENV"
           ls -la "$BUILD_DIR"
 
