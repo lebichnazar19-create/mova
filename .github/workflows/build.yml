@@ -1,7 +1,9 @@
 name: Збірка APK
 
-# На кожен push у main — зібрати Android APK через Buildozer і покласти
-# готовий файл в Artifacts запуску. workflow_dispatch — щоб можна було
+# На кожен push у main — зібрати Android APK через Buildozer, покласти
+# готовий файл в Artifacts запуску і (лише на main) у GitHub Release з
+# тегом v<версія> — звідти APK качається прямим посиланням без входу в
+# GitHub. workflow_dispatch — щоб можна було
 # перезапустити збірку вручну без нового коміту.
 #
 # Buildozer ставиться напряму на ubuntu-latest (без ArtemSBulgakov/
@@ -18,6 +20,9 @@ jobs:
     # новими autoconf/libtool у ubuntu-24.04 ("possibly undefined macro:
     # LT_SYS_SYMBOL_USCORE"). 22.04 — перевірена версія для p4a-збірок.
     runs-on: ubuntu-22.04
+    # Крок «Реліз» створює тег і GitHub Release — потрібен запис у репозиторій.
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -128,6 +133,39 @@ jobs:
           name: мова-APK-${{ env.VERSIYA }}
           path: bin/*.apk
           if-no-files-found: error
+
+      # Реліз — лише після успішної збірки на main. Тег — v<версія> з
+      # yadro/versiya.py. Поки версія та сама, кожна нова збірка оновлює
+      # той самий реліз: тег пересувається на свіжий коміт, APK
+      # замінюється (--clobber). Нова версія — новий тег і новий реліз.
+      # У релізі два файли з однаковим вмістом: mova-<версія>-…apk і
+      # mova.apk — друга назва стала, тож посилання
+      # releases/latest/download/mova.apk завжди веде на найновіший APK.
+      - name: Реліз — тег v<версія> і APK у GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          TAG="v${VERSIYA}"
+          APK=$(ls bin/*.apk | head -n1)
+          cp "$APK" mova.apk
+          cat > notes.md <<EOF
+          Редактор «Мова» ${VERSIYA} для Android (arm64-v8a, debug).
+
+          Збірка з коміту ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC')).
+          Завантаж \`mova.apk\` (або \`$(basename "$APK")\` — той самий файл) і встанови на телефон.
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            git tag -f "$TAG" "$GITHUB_SHA"
+            git push -f origin "refs/tags/$TAG"
+            gh release upload "$TAG" "$APK" mova.apk --clobber
+            gh release edit "$TAG" --title "Мова ${VERSIYA}" --notes-file notes.md --latest
+          else
+            gh release create "$TAG" "$APK" mova.apk --target "$GITHUB_SHA" \
+              --title "Мова ${VERSIYA}" --notes-file notes.md --latest
+          fi
+          gh release view "$TAG" --json url,assets --jq '.url, (.assets[] | .name + " " + (.size|tostring))'
 
   # Книжка з документації — окрема швидка робота в тому ж workflow: PDF
   # з ПІДРУЧНИК.md + ДОВІДНИК.md (tools/knyzhka.py) не залежить від

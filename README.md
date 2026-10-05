@@ -6,6 +6,10 @@
 `termux-api`. Локальна LLM (ollama / llama.cpp) підключена як вбудована
 функція мови (`спитай`, `переклади`, `стисни`).
 
+**Завантажити застосунок для Android:**
+[останній реліз](https://github.com/lebichnazar19-create/mova/releases/latest) ·
+[mova.apk — пряме посилання](https://github.com/lebichnazar19-create/mova/releases/latest/download/mova.apk)
+
 ## Стан проєкту (версія 1.4)
 
 Зроблено (усе покрито тестами в `тести/`, `python3 -m pytest тести/ -q`):
@@ -287,8 +291,21 @@ cp agent/agent_esp32/build/esp32.esp32.esp32/agent_esp32.ino.merged.bin agent/ag
 | **Збірка APK** (`build.yml`) — на кожен push у `main` | редактор «Мова» (цей репозиторій) | `мова-APK-<версія>` | `mova-<версія>-arm64-v8a-debug.apk` |
 | **Застосунки з програм** (`zastosunky.yml`) — на push зі змінами в `застосунки/` чи ядрі, або вручну (Run workflow) | кожну теку `застосунки/<назва>/` окремим застосунком | `програми-APK-<версія>-<назва>` | `<латинська назва>-<версія>-arm64-v8a-debug.apk` |
 
-Де качати: GitHub → Actions → потрібний workflow → останній зелений запуск
-→ розділ Artifacts внизу сторінки (zip з .apk). Артефакти живуть 90 днів.
+**Реліз.** Після кожної успішної збірки редактора на `main` той самий
+workflow (`build.yml`, крок «Реліз») створює або оновлює GitHub Release
+з тегом `v<версія>` (версія — з `yadro/versiya.py`) і додає туди APK:
+
+- [останній реліз](https://github.com/lebichnazar19-create/mova/releases/latest) — сторінка з файлами;
+- [mova.apk](https://github.com/lebichnazar19-create/mova/releases/latest/download/mova.apk) — пряме посилання на найновіший
+  APK (назва стала); поруч лежить той самий файл під назвою
+  `mova-<версія>-arm64-v8a-debug.apk`.
+
+Поки версія не змінилась, реліз оновлюється на місці (тег пересувається
+на свіжий коміт, APK замінюється); нова версія — новий тег і реліз.
+
+Артефакти запусків: GitHub → Actions → потрібний workflow → останній
+зелений запуск → розділ Artifacts внизу сторінки (zip з .apk; потрібен
+вхід у GitHub). Артефакти живуть 90 днів; застосунки з програм є лише там.
 
 Версія — **лише** в `yadro/versiya.py` (`ВЕРСІЯ = "1.3"`): звідти її
 беруть напис у панелі й заголовок редактора, `buildozer.spec`

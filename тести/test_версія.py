@@ -70,3 +70,19 @@ def test_числова_версія_вище_за_будь_який_стари�
     # (тому «старий APK» лишався). Наш код має бути вищим за всі старі.
     from yadro.versiya import ЧИСЛОВА_ВЕРСІЯ
     assert ЧИСЛОВА_ВЕРСІЯ > 10201
+
+
+def test_workflow_робить_реліз_з_apk_лише_на_main():
+    """build.yml: після успішної збірки на main — GitHub Release з тегом
+    v<версія> і APK (також під сталою назвою mova.apk для прямого
+    посилання з README)."""
+    текст = (КОРІНЬ / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
+    assert "contents: write" in текст
+    assert "if: github.ref == 'refs/heads/main'" in текст
+    assert 'TAG="v${VERSIYA}"' in текст
+    assert "gh release create" in текст and "gh release upload" in текст and "--clobber" in текст
+    # реліз — після збірки й артефакта, у тій самій роботі
+    assert текст.index("buildozer -v android debug\n") < текст.index("upload-artifact") < текст.index("gh release create")
+    readme = (КОРІНЬ / "README.md").read_text(encoding="utf-8")
+    assert "/releases/latest)" in readme
+    assert "/releases/latest/download/mova.apk" in readme
