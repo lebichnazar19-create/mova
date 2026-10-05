@@ -1,6 +1,6 @@
 """Спільні Kivy-віджети редактора (main.py) і згенерованих запускачів
 застосунків (zastosunky.py): прокручуваний текст (вікно виводу, логіка —
-vyvid.py) і ряд кнопок, полотно креслення. Kivy-only, на комп'ютері без
+vyvid.py) і ряд кнопок, ряд, що ховається (рядок вводу), полотно креслення. Kivy-only, на комп'ютері без
 дисплея не імпортується."""
 
 from kivy.core.text import Label as CoreLabel
@@ -168,6 +168,27 @@ def прокручуваний_ряд(кнопки, висота):
     )
     прокрутка.add_widget(ряд)
     return прокрутка
+
+
+class РядЩоХовається(BoxLayout):
+    """BoxLayout, який ховають висотою 0 (рядок вводу для «запитай»).
+    Діти такого ряду мають свою сталу висоту, тож і при висоті 0 лишаються
+    розкладені — поверх нижньої смуги сусіда згори (полотна), і без цього
+    класу ковтали б його дотики: вимкнений (disabled) віджет Kivy з'їдає
+    дотик у своїх межах, увімкнене поле вводу — бере собі. Схований ряд
+    дотиків не бачить зовсім; показаний — лише ті, що в його межах."""
+
+    def _мій(self, touch):
+        return self.height > 0 and self.collide_point(*touch.pos)
+
+    def on_touch_down(self, touch):
+        return self._мій(touch) and super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        return self.height > 0 and super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        return self.height > 0 and super().on_touch_up(touch)
 
 
 import math

@@ -24,7 +24,7 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 
-from vidzhety import ПолотноКреслення, прокручуваний_ряд, прокручуваний_текст
+from vidzhety import ПолотноКреслення, РядЩоХовається, прокручуваний_ряд, прокручуваний_текст
 
 Window.softinput_mode = "resize"
 МОНО = "RobotoMono-Regular"
@@ -71,8 +71,9 @@ class Застосунок(App):
         self._панель_креслення.add_widget(self._полотно)
         корінь.add_widget(self._низ)
 
-        # рядок вводу для «запитай» — видно лише поки програма чекає на відповідь
-        self._ряд_вводу = BoxLayout(orientation="vertical", size_hint_y=None, height=0, opacity=0, spacing=dp(2))
+        # рядок вводу для «запитай» — видно лише поки програма чекає на відповідь;
+        # РядЩоХовається — схований не перехоплює дотики до низу полотна над ним
+        self._ряд_вводу = РядЩоХовається(orientation="vertical", size_hint_y=None, height=0, opacity=0, spacing=dp(2))
         ряд2 = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(4))
         self._поле = TextInput(multiline=False, font_name=МОНО, font_size=sp(15))
         self._поле.bind(on_text_validate=self._надіслати)

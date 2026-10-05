@@ -85,7 +85,7 @@ import redaktor
 import vyvid
 import zastosunky
 from panel_poshuku import ПанельПошуку
-from vidzhety import ПолотноКреслення, прокручуваний_ряд, прокручуваний_текст
+from vidzhety import ПолотноКреслення, РядЩоХовається, прокручуваний_ряд, прокручуваний_текст
 from vikno_proektiv import ВікноПроєктів
 from yadro import dovidka
 
@@ -558,8 +558,9 @@ class МоваApp(App):
     def _рядок_вводу(self):
         """Поле вводу + «Далі» (для запитай) з необов'язковим написом над
         ним (назва застосунку, токен тощо). Висота 0 = сховано; з'являється
-        лише поки програма чекає на відповідь."""
-        self._ряд_вводу = BoxLayout(orientation="vertical", size_hint_y=None, height=0, spacing=dp(2))
+        лише поки програма чекає на відповідь. РядЩоХовається — щоб схований
+        ряд не перехоплював дотики до низу полотна над ним."""
+        self._ряд_вводу = РядЩоХовається(orientation="vertical", size_hint_y=None, height=0, spacing=dp(2))
         self._запит = Label(
             text="", size_hint_y=None, height=dp(22), halign="left", valign="middle",
             font_size=sp(14), color=(0.2, 0.45, 0.2, 1),
