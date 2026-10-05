@@ -46,9 +46,16 @@ def зберегти_налаштування(тека, **зміни):
         if з is not None:
             поточні[к] = з.strip()
     Path(тека).mkdir(parents=True, exist_ok=True)
-    (Path(тека) / ФАЙЛ_НАЛАШТУВАНЬ).write_text(
-        json.dumps(поточні, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    ф = Path(тека) / ФАЙЛ_НАЛАШТУВАНЬ
+    # у тому ж файлі живуть і чужі налаштування (межа рядків виводу — vyvid.py)
+    try:
+        усі = json.loads(ф.read_text(encoding="utf-8"))
+        if not isinstance(усі, dict):
+            усі = {}
+    except Exception:
+        усі = {}
+    усі.update(поточні)
+    ф.write_text(json.dumps(усі, ensure_ascii=False, indent=2), encoding="utf-8")
     return поточні
 
 

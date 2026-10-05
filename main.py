@@ -80,6 +80,7 @@ from kivy.uix.textinput import TextInput
 import github
 import proekty
 import redaktor
+import vyvid
 import zastosunky
 from vidzhety import ПолотноКреслення, прокручуваний_ряд, прокручуваний_текст
 from vikno_proektiv import ВікноПроєктів
@@ -337,6 +338,7 @@ class МоваApp(App):
         self._прокрутка_виводу, self.вивід = прокручуваний_текст(
             "Натисни «Виконати».", шрифт=МОНО, розмір=sp(14)
         )
+        self.вивід.межа = vyvid.прочитати_межу(self.user_data_dir)
         self._низ = BoxLayout(orientation="vertical")
         self._низ.add_widget(self._прокрутка_виводу)
         корінь.add_widget(self._низ)
@@ -835,6 +837,8 @@ class МоваApp(App):
     def _налаштування(self, *_):
         налашт = github.прочитати_налаштування(self.user_data_dir)
         self.вивід.text = (
+            f"Вікно виводу: останні {int(self.вивід.межа)} рядків "
+            f"(можна від {vyvid.МЕЖА_МІН} до {vyvid.МЕЖА_МАКС}).\n\n"
             "Налаштування публікації в GitHub:\n"
             f"  репозиторій: {налашт['репо']}\n"
             f"  гілка: {налашт['гілка']}\n"
@@ -859,6 +863,21 @@ class МоваApp(App):
         if репо.strip():
             github.зберегти_налаштування(self.user_data_dir, репо=репо)
             self.вивід.text += f"\nРепозиторій: {репо.strip()}."
+        self._показати_ввід(
+            f"Рядків у вікні виводу (зараз {int(self.вивід.межа)}), порожньо — лишити:", self._зберегти_межу)
+
+    def _зберегти_межу(self, текст):
+        if текст.strip():
+            межа = vyvid.межа_з_тексту(текст)
+            if межа is None:
+                self.вивід.text += f"\nРядків виводу: «{текст.strip()}» — не число, лишаю {int(self.вивід.межа)}."
+            else:
+                try:
+                    vyvid.зберегти_межу(self.user_data_dir, межа)
+                except Exception as e:
+                    self.вивід.text += f"\nМежу не вдалося зберегти у файл: {e}"
+                self.вивід.межа = межа
+                self.вивід.text += f"\nРядків у вікні виводу: {межа}."
         self.вивід.text += "\nГотово. «Зробити застосунок» тепер надсилатиме програму в GitHub."
 
     # ---- плата (yadro/plata.py) ---------------------------------------------------

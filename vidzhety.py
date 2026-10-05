@@ -1,29 +1,160 @@
 """Спільні Kivy-віджети редактора (main.py) і згенерованих запускачів
-застосунків (zastosunky.py): прокручуваний текст і ряд кнопок, полотно
-креслення. Kivy-only, на комп'ютері без дисплея не імпортується."""
+застосунків (zastosunky.py): прокручуваний текст (вікно виводу, логіка —
+vyvid.py) і ряд кнопок, полотно креслення. Kivy-only, на комп'ютері без
+дисплея не імпортується."""
 
 from kivy.core.text import Label as CoreLabel
 from kivy.graphics import Color, Ellipse, Line, PopMatrix, PushMatrix, Rectangle, Rotate, Triangle
 from kivy.metrics import dp
+from kivy.properties import NumericProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.stencilview import StencilView
+from kivy.uix.widget import Widget
+
+import vyvid
 
 МОНО = "RobotoMono-Regular"  # входить у Kivy, підтримує кирилицю
 
 
+class ТекстВиводу(Widget):
+    """Довгий текст у ScrollView без однієї величезної текстури: текст
+    поділено на шматки (vyvid.Розкладка), і Label існує лише для тих, що
+    зараз у вікні прокрутки (плюс пів екрана запасу з кожного боку).
+    Зовні — як Label: властивість text (можна bind і +=); «межа» — скільки
+    останніх рядків показувати."""
+
+    text = StringProperty("")
+    межа = NumericProperty(vyvid.МЕЖА_ТИПОВА)
+
+    def __init__(self, шрифт=None, розмір="15sp", **kw):
+        self._шрифт = {"font_name": шрифт} if шрифт else {}
+        self._розмір = розмір
+        self._прокрутка = None
+        self._розкладка = vyvid.Розкладка()
+        self._показані = {}        # номер шматка -> Label
+        self._вільні = []          # Label-и, що вийшли з вікна, — на повторне використання
+        self._стовпців = 0
+        self._оновлюю = False
+        self._розмір_знака = None  # (ширина, висота) одного знака шрифту
+        kw.setdefault("size_hint_y", None)
+        super().__init__(**kw)
+        self.bind(text=self._перебудувати, межа=self._перебудувати,
+                  width=self._при_ширині, pos=self._оновити_видиме)
+        self._перебудувати()
+
+    def привʼязати(self, прокрутка):
+        """ScrollView, у якому лежить текст: видимі шматки рахуються за
+        його scroll_y і висотою."""
+        self._прокрутка = прокрутка
+        прокрутка.bind(scroll_y=self._оновити_видиме, height=self._оновити_видиме)
+        self._оновити_видиме()
+
+    # ---- розкладка ----------------------------------------------------------
+
+    def _нова_мітка(self):
+        return Label(
+            size_hint=(None, None), halign="left", valign="top",
+            font_size=self._розмір, **self._шрифт,
+        )
+
+    def _знак(self):
+        if self._розмір_знака is None:
+            мітка = self._нова_мітка()
+            ш, в = CoreLabel(font_size=мітка.font_size, font_name=мітка.font_name).get_extents("0")
+            self._розмір_знака = (max(ш, 1), max(в, 1))
+            self._вільні.append(мітка)
+        return self._розмір_знака
+
+    def _порахувати_стовпці(self):
+        return max(1, int((self.width - dp(8)) / self._знак()[0]))
+
+    def _перебудувати(self, *_):
+        self._стовпців = self._порахувати_стовпці()
+        for і in list(self._показані):
+            self._сховати(і)
+        self._розкладка = vyvid.Розкладка(self.text, int(self.межа), self._стовпців, self._знак()[1])
+        self._оновити_видиме()
+
+    def _при_ширині(self, *_):
+        # інша ширина — інші переноси: шматки рахуємо наново лише коли
+        # змінилась кількість знаків у ряду
+        if self._порахувати_стовпці() != self._стовпців:
+            self._перебудувати()
+        else:
+            self._оновити_видиме()
+
+    # ---- видимі шматки ---------------------------------------------------------
+
+    def _вікно(self):
+        """(верх, низ) видимої смуги — відстані від верху тексту, із запасом."""
+        всього = self._розкладка.всього + dp(8)
+        п = self._прокрутка
+        if п is None or всього <= п.height:
+            return 0, всього
+        y = min(max(п.scroll_y, 0), 1)
+        верх = (1 - y) * (всього - п.height)
+        запас = п.height / 2
+        return верх - запас, верх + п.height + запас
+
+    def _показати(self, і):
+        """Намалювати шматок і. True — якщо справжня висота не та, що в оцінці."""
+        мітка = self._вільні.pop() if self._вільні else self._нова_мітка()
+        мітка.text_size = (self.width - dp(8), None)
+        мітка.text = self._розкладка.тексти[і]
+        мітка.texture_update()
+        # text/text_size уже запланували це саме оновлення на наступний
+        # кадр — удруге малювати той самий текст не треба
+        відкладене = getattr(мітка, "_trigger_texture", None)
+        if відкладене is not None:
+            відкладене.cancel()
+        self._показані[і] = мітка
+        self.add_widget(мітка)
+        висота = мітка.texture_size[1]
+        return висота > 0 and self._розкладка.уточнити(і, висота)
+
+    def _сховати(self, і):
+        мітка = self._показані.pop(і)
+        self.remove_widget(мітка)
+        мітка.text = ""            # звільнити текстуру
+        self._вільні.append(мітка)
+
+    def _оновити_видиме(self, *_):
+        if self._оновлюю:
+            return
+        self._оновлюю = True
+        try:
+            for _ in range(3):     # уточнена висота може зсунути вікно
+                верх, низ = self._вікно()
+                потрібні = self._розкладка.видимі(верх, низ)
+                for і in [і for і in self._показані if і not in потрібні]:
+                    self._сховати(і)
+                зсунулось = False
+                for і in потрібні:
+                    if і not in self._показані:
+                        зсунулось = self._показати(і) or зсунулось
+                if not зсунулось:
+                    break
+            self.height = self._розкладка.всього + dp(8)
+            for і, мітка in self._показані.items():
+                висота = self._розкладка.висоти[і]
+                мітка.size = (self.width, висота)
+                # цілі пікселі: Label малює текстуру з int(), дробові
+                # координати дали б щілини в піксель між шматками
+                мітка.pos = (int(self.x), int(self.top - dp(4) - self._розкладка.верх(і) - висота))
+        finally:
+            self._оновлюю = False
+
+
 def прокручуваний_текст(текст="", шрифт=None, розмір="15sp"):
-    """ScrollView з Label, що переносить рядки й росте у висоту."""
-    мітка = Label(
-        text=текст, size_hint_y=None, halign="left", valign="top",
-        font_size=розмір, **({"font_name": шрифт} if шрифт else {}),
-    )
-    мітка.bind(width=lambda і, ш: setattr(і, "text_size", (ш - dp(8), None)))
-    мітка.bind(texture_size=lambda і, р: setattr(і, "height", р[1] + dp(8)))
+    """ScrollView з текстом, що переносить рядки й росте у висоту; довгий
+    текст малюється шматками (ТекстВиводу)."""
+    вивід = ТекстВиводу(text=текст, шрифт=шрифт, розмір=розмір)
     прокрутка = ScrollView()
-    прокрутка.add_widget(мітка)
-    return прокрутка, мітка
+    прокрутка.add_widget(вивід)
+    вивід.привʼязати(прокрутка)
+    return прокрутка, вивід
 
 
 def прокручуваний_ряд(кнопки, висота):
