@@ -50,10 +50,16 @@ class ПолотноКреслення(StencilView):
     масштаб двома (щипок, ×1.1/÷1.1 за крок, з межами), «Вмістити все».
     Уся геометрія показу — в polotno.py (без Kivy): товщини ліній і
     шрифт сталі в пікселях, тому при масштабуванні лінії не стають
-    брусками. Малює напряму на своєму canvas (без Scatter)."""
+    брусками. Малює напряму на своєму canvas (без Scatter).
 
-    def __init__(self, **kw):
+    Кадр бібліотеки «екран» (креслення["екран"]) пальцями не рухається:
+    дотик іде програмі через при_дотику(x, y, натиснуто) — пікселі кадру,
+    (0, 0) угорі ліворуч (polotno.точка_екрана)."""
+
+    def __init__(self, при_дотику=None, **kw):
         super().__init__(**kw)
+        self.при_дотику = при_дотику
+        self._палець = None        # uid дотику, який бачить програма («екран»)
         self.креслення = None
         self.масштаб = 1.0
         self.зсув = (0.0, 0.0)
@@ -135,10 +141,24 @@ class ПолотноКреслення(StencilView):
 
     # ---- дотики: один палець — гортання, два — масштаб ----------------------
 
+    def _це_екран(self):
+        return bool(self.креслення and self.креслення.get("екран"))
+
+    def _дотик_програмі(self, touch, натиснуто):
+        if self.при_дотику is None:
+            return
+        x, y = polotno.точка_екрана(self.креслення, self.масштаб, self.зсув, touch.x, touch.y)
+        self.при_дотику(x, y, натиснуто)
+
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos) or self.креслення is None:
             return super().on_touch_down(touch)
         touch.grab(self)
+        if self._це_екран():
+            if self._палець is None:
+                self._палець = touch.uid
+                self._дотик_програмі(touch, True)
+            return True
         self._дотики[touch.uid] = touch.pos
         if len(self._дотики) == 2:
             self._почати_щипок()
@@ -151,6 +171,10 @@ class ПолотноКреслення(StencilView):
     def on_touch_move(self, touch):
         if touch.grab_current is not self:
             return super().on_touch_move(touch)
+        if self._палець is not None or self._це_екран():
+            if touch.uid == self._палець:
+                self._дотик_програмі(touch, True)
+            return True
         if touch.uid not in self._дотики:
             return True
         self._дотики[touch.uid] = touch.pos
@@ -172,6 +196,11 @@ class ПолотноКреслення(StencilView):
         if touch.grab_current is not self:
             return super().on_touch_up(touch)
         touch.ungrab(self)
+        if touch.uid == self._палець:
+            self._палець = None
+            if self.креслення is not None:
+                self._дотик_програмі(touch, False)
+            return True
         self._дотики.pop(touch.uid, None)
         self._щипок = None
         if len(self._дотики) >= 2:
