@@ -63,7 +63,7 @@ def test_межа_зберігається_поруч_із_токеном(tmp_pa
     vyvid.зберегти_межу(tmp_path, 2500)
     assert vyvid.прочитати_межу(tmp_path) == 2500
     assert github.прочитати_налаштування(tmp_path)["токен"] == "ghp_abcdef123"
-    github.зберегти_налаштування(tmp_path, репо="me/mova")   # не губить межу
+    github.зберегти_налаштування(tmp_path, репо="me/vuzh")   # не губить межу
     assert vyvid.прочитати_межу(tmp_path) == 2500
     (tmp_path / vyvid.ФАЙЛ_НАЛАШТУВАНЬ).write_text("не json", encoding="utf-8")
     assert vyvid.прочитати_межу(tmp_path) == 10000

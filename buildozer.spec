@@ -2,21 +2,21 @@
 
 # Назва застосунку (показується в списку застосунків Android) —
 # може бути кирилицею, на відміну від package.name/package.domain нижче.
-title = Мова
+title = Вуж
 
 # package.name/package.domain формують ідентифікатор Android-застосунку
-# (тут: org.mova.mova) — за вимогами Android/Java мають бути латиницею,
+# (тут: org.vuzh.vuzh) — за вимогами Android/Java мають бути латиницею,
 # нижнім регістром, без дефісів.
-package.name = mova
-package.domain = org.mova
+package.name = vuzh
+package.domain = org.vuzh
 
 # Корінь проєкту — увесь репозиторій (yadro/, main.py, тести/ тощо).
 source.dir = .
 
 # Які файли з source.dir пакувати в APK за розширенням.
-# "мова" — на майбутнє, коли демо/приклади (*.мова) підключатимуться як
+# "вуж" — на майбутнє, коли демо/приклади (*.вуж) підключатимуться як
 # файли-активи, а не як рядок просто в main.py.
-source.include_exts = py,png,jpg,kv,atlas,мова,bin
+source.include_exts = py,png,jpg,kv,atlas,вуж,bin
 
 # Не тягнути в APK нічого зайвого: git-метадані, кеші тестів, байткод,
 # готові білди Buildozer з попередніх запусків.

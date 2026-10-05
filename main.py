@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Точка входу Kivy-застосунку «Мова» для Android: редактор коду з запуском.
+"""Точка входу Kivy-застосунку «Вуж» для Android: редактор коду з запуском.
 
 Екран: прокручувана панель кнопок («Виконати», «Стоп», «Очистити вивід»,
 «Очистити код»), поле коду з номерами рядків і підсвіткою (CodeInput +
@@ -25,9 +25,9 @@
 проєкт із назвою (вікно — vikno_proektiv.py, логіка без Kivy —
 proekty.py). Відкритий проєкт зберігається сам: при «Виконати», коли
 застосунок згортають чи закривають, перед показом списку; текст після
-кожної зміни ще й лягає в чернетку user_data_dir/код.мова. «Зробити застосунок»
+кожної зміни ще й лягає в чернетку user_data_dir/код.вуж. «Зробити застосунок»
 — поточна програма стає окремим застосунком (zastosunky.py: тека
-застосунки/назва/ з програма.мова, main.py-запускачем, buildozer.spec,
+застосунки/назва/ з програма.вуж, main.py-запускачем, buildozer.spec,
 icon.png) і, якщо в «Налаштування» задано токен GitHub, публікується в
 репозиторій одним комітом через API (github.py) — далі workflow
 zastosunky.yml збирає APK. Токен зберігається у теці застосунку
@@ -111,7 +111,7 @@ Window.softinput_mode = "resize"
 
 def _шапка_діагностики():
     """Версія, вміст теки з main.py, sys.path — лише для крах-екрана."""
-    рядки = [f"Мова, версія {ВЕРСІЯ}"]
+    рядки = [f"Вуж, версія {ВЕРСІЯ}"]
     try:
         тека = os.path.dirname(os.path.abspath(__file__))
         рядки.append(f"os.listdir({тека!r}):")
@@ -355,8 +355,8 @@ def plata_підключено_по_wifi():
     return bool(назва) and назва.startswith("Wi-Fi")
 
 
-class МоваApp(App):
-    title = "Мова"
+class ВужApp(App):
+    title = "Вуж"
 
     def build(self):
         try:
@@ -402,8 +402,8 @@ class МоваApp(App):
             multiline=True, auto_indent=False, do_wrap=False,
             scroll_from_swipe=True, style_name="default",
         )
-        if redaktor.МоваLexer is not None:
-            self.код.lexer = redaktor.МоваLexer()
+        if redaktor.ВужLexer is not None:
+            self.код.lexer = redaktor.ВужLexer()
         self.код.bind(text=self._при_зміні_тексту)
 
         # Пошук, заміна, перехід до рядка — смужка над полем коду (висота
@@ -658,7 +658,7 @@ class МоваApp(App):
         панель = StackLayout(orientation="lr-tb", size_hint_y=None, spacing=(dp(4), dp(4)))
         панель.bind(minimum_height=панель.setter("height"))
         версія = Label(
-            text=f"Мова {ВЕРСІЯ}", size_hint=(None, None), height=dp(38), width=dp(74),
+            text=f"Вуж {ВЕРСІЯ}", size_hint=(None, None), height=dp(38), width=dp(74),
             font_size=sp(13), color=(0.45, 0.45, 0.5, 1),
         )
         панель.add_widget(версія)
@@ -847,7 +847,7 @@ class МоваApp(App):
     def _показати_назву_проєкту(self):
         назва = self._проєкти.поточний
         self._назва_проєкту.text = f"Проєкт: {назва}" if назва else "Проєкт не збережено"
-        self.title = f"Мова — {назва}" if назва else "Мова"
+        self.title = f"Вуж — {назва}" if назва else "Вуж"
 
     def _зберегти_проєкт(self):
         """Автозбереження відкритого проєкту: при «Виконати», при згортанні
@@ -920,7 +920,7 @@ class МоваApp(App):
             return
         self.вивід.text = текст + f"\n\nНадсилаю в {налашт['репо']}…"
         шляхи = zastosunky.шляхи_для_публікації(назва, файли)
-        повідомлення = f"Застосунок «{zastosunky.безпечна_назва(назва)}» (з редактора Мови {ВЕРСІЯ})"
+        повідомлення = f"Застосунок «{zastosunky.безпечна_назва(назва)}» (з редактора Вужа {ВЕРСІЯ})"
         threading.Thread(
             target=self._опублікувати_у_потоці, args=(налашт, шляхи, повідомлення, текст), daemon=True
         ).start()
@@ -1113,4 +1113,4 @@ class МоваApp(App):
 
 
 if __name__ == "__main__":
-    МоваApp().run()
+    ВужApp().run()

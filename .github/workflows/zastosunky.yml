@@ -1,6 +1,6 @@
 name: Застосунки з програм
 
-# Кожна тека в застосунки/ — окремий Android-застосунок (програма.мова +
+# Кожна тека в застосунки/ — окремий Android-застосунок (програма.вуж +
 # main.py-запускач + buildozer.spec + icon.png, згенеровані zastosunky.py).
 # Ядро мови (yadro/, biblioteky/, zapusk.py, vidzhety.py, polotno.py, vyvid.py) докладається сюди перед
 # збіркою, щоб у репозиторії воно лишалось в одному місці. Артефакт
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: find
         run: |
-          apps=$(python3 -c 'import json, pathlib; t = pathlib.Path("застосунки"); print(json.dumps(sorted(p.name for p in t.iterdir() if p.is_dir() and (p / "програма.мова").is_file()) if t.is_dir() else [], ensure_ascii=False))')
+          apps=$(python3 -c 'import json, pathlib; t = pathlib.Path("застосунки"); print(json.dumps(sorted(p.name for p in t.iterdir() if p.is_dir() and ((p / "програма.вуж").is_file() or (p / "програма.мова").is_file())) if t.is_dir() else [], ensure_ascii=False))')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
           echo "Застосунки: $apps"
 
@@ -110,7 +110,7 @@ jobs:
       # Тому збираємо копію застосунку в теці з латинським шляхом.
       - name: Докласти ядро мови до застосунку (копія в ASCII-теці)
         run: |
-          BUILD_DIR="$RUNNER_TEMP/mova_app"
+          BUILD_DIR="$RUNNER_TEMP/vuzh_app"
           rm -rf "$BUILD_DIR"
           cp -r "застосунки/$APP" "$BUILD_DIR"
           cp -r yadro biblioteky zapusk.py vidzhety.py polotno.py vyvid.py "$BUILD_DIR/"
@@ -146,7 +146,7 @@ jobs:
         run: buildozer -v android debug
 
       # Назва артефакта: «програми-APK-<версія>-<програма>» — основний
-      # застосунок зветься «мова-APK-<версія>» (build.yml).
+      # застосунок зветься «вуж-APK-<версія>» (build.yml).
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:

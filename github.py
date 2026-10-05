@@ -75,7 +75,7 @@ def _запит(токен, метод, шлях, дані=None, відкрит�
         headers={
             "Authorization": "token " + токен,
             "Accept": "application/vnd.github+json",
-            "User-Agent": "mova-app",
+            "User-Agent": "vuzh-app",
             "Content-Type": "application/json",
         },
     )

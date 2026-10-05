@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Запускач застосунку «кабель»: виконує програма.мова (мова «Мова») без
+"""Запускач застосунку «кабель»: виконує програма.вуж (мова «Вуж») без
 редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py)
 докладає workflow під час збірки APK."""
 
@@ -13,7 +13,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 НАЗВА = 'кабель'
-ФАЙЛ_ПРОГРАМИ = "програма.мова"
+ФАЙЛ_ПРОГРАМИ = "програма.вуж"
 
 from kivy.app import App
 from kivy.clock import Clock

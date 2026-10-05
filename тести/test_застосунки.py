@@ -28,7 +28,7 @@ def test_безпечна_назва_і_слаг():
     assert з.слаг("Кабель") == "kabel"
     assert з.слаг("Мій кабель 2") == "mii_kabel_2"
     assert з.слаг("Щоденник п'ять") == "shchodennyk_piat"
-    assert з.слаг("123") == "mova_123" and з.слаг("!!!") == "mova_app"
+    assert з.слаг("123") == "vuzh_123" and з.слаг("!!!") == "vuzh_app"
     assert з.слаг("Cable App") == "cable_app"
 
 
@@ -36,12 +36,12 @@ def test_безпечна_назва_і_слаг():
 
 def test_файли_застосунку_повний_набір():
     ф = з.файли_застосунку("Кабель", КОД, версія="1.1")
-    assert set(ф) == {"програма.мова", "main.py", "buildozer.spec", "icon.png"}
-    assert ф["програма.мова"] == КОД
+    assert set(ф) == {"програма.вуж", "main.py", "buildozer.spec", "icon.png"}
+    assert ф["програма.вуж"] == КОД
     spec = ф["buildozer.spec"]
     assert "title = Кабель" in spec and "package.name = kabel" in spec
     assert "version = 1.1" in spec and "icon.filename = icon.png" in spec
-    assert "source.include_exts = py,png,jpg,kv,atlas,мова" in spec
+    assert "source.include_exts = py,png,jpg,kv,atlas,вуж" in spec
     assert "requirements = python3,kivy==2.3.0" in spec
 
 
@@ -49,7 +49,7 @@ def test_запускач_синтаксично_правильний_і_без_
     main = з.файли_застосунку("Кабель", КОД)["main.py"]
     ast.parse(main)  # чинний Python
     assert 'НАЗВА = \'Кабель\'' in main or "НАЗВА = 'Кабель'" in main
-    assert 'ФАЙЛ_ПРОГРАМИ = "програма.мова"' in main
+    assert 'ФАЙЛ_ПРОГРАМИ = "програма.вуж"' in main
     assert "from zapusk import виконати_код" in main
     assert "CodeInput" not in main and "redaktor" not in main  # без редактора
     for потрібне in ("питай=self._питай", "кнопка=self._додати_кнопку", "при_кресленні=self._при_кресленні",
@@ -59,7 +59,7 @@ def test_запускач_синтаксично_правильний_і_без_
 
 
 def test_програма_отримує_перенос_рядка_в_кінці():
-    assert з.файли_застосунку("а", "друкуй(1)")["програма.мова"] == "друкуй(1)\n"
+    assert з.файли_застосунку("а", "друкуй(1)")["програма.вуж"] == "друкуй(1)\n"
 
 
 def test_іконка_чинний_png_192():
@@ -86,13 +86,13 @@ def test_порожня_назва_чи_код_помилка():
 def test_створити_застосунок_пише_теку_і_список(tmp_path):
     тека, файли = з.створити_застосунок(tmp_path, "Мій кабель", КОД, "1.1")
     assert тека == tmp_path / "застосунки" / "Мій кабель"
-    assert sorted(файли) == sorted(["програма.мова", "main.py", "buildozer.spec", "icon.png"])
-    assert (тека / "програма.мова").read_text(encoding="utf-8") == КОД
+    assert sorted(файли) == sorted(["програма.вуж", "main.py", "buildozer.spec", "icon.png"])
+    assert (тека / "програма.вуж").read_text(encoding="utf-8") == КОД
     assert (тека / "icon.png").read_bytes().startswith(b"\x89PNG")
     assert з.список_застосунків(tmp_path) == ["Мій кабель"]
     # повторне створення перезаписує без помилки
     з.створити_застосунок(tmp_path, "Мій кабель", 'друкуй(2)\n')
-    assert (тека / "програма.мова").read_text(encoding="utf-8") == 'друкуй(2)\n'
+    assert (тека / "програма.вуж").read_text(encoding="utf-8") == 'друкуй(2)\n'
     assert з.список_застосунків(tmp_path / "нема") == []
 
 
@@ -104,7 +104,7 @@ def test_шляхи_для_публікації():
 def test_приклад_кабель_у_репозиторії_збігається_з_програмою_геометрії():
     корінь = Path(__file__).resolve().parent.parent
     тека = корінь / "застосунки" / "кабель"
-    assert (тека / "програма.мова").read_text(encoding="utf-8") == (корінь / "приклади" / "геометрія.мова").read_text(encoding="utf-8")
+    assert (тека / "програма.вуж").read_text(encoding="utf-8") == (корінь / "приклади" / "геометрія.вуж").read_text(encoding="utf-8")
     for ф in ("main.py", "buildozer.spec", "icon.png"):
         assert (тека / ф).is_file()
     assert "title = кабель" in (тека / "buildozer.spec").read_text(encoding="utf-8")
@@ -116,7 +116,7 @@ def test_workflow_збирає_кожну_теку_і_докладає_ядро(
     assert "cp -r yadro biblioteky zapusk.py vidzhety.py" in текст
     assert "name: програми-APK-${{ env.VERSIYA }}-${{ matrix.app }}" in текст   # однозначна назва артефакта
     основний = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
-    assert "name: мова-APK-${{ env.VERSIYA }}" in основний
+    assert "name: вуж-APK-${{ env.VERSIYA }}" in основний
     assert "from yadro.versiya import ВЕРСІЯ" in основний and "from yadro.versiya import ВЕРСІЯ" in текст
     import re
     # ідентифікатори jobs/steps і вирази ${{ }} — лише латиниця, інакше GitHub не розбирає файл
@@ -198,8 +198,19 @@ def test_помилки_публікації_не_містять_токена():
 def test_налаштування_зберігаються_і_токен_маскується(tmp_path):
     assert github.прочитати_налаштування(tmp_path) == {"токен": "", "репо": github.РЕПО_ТИПОВЕ, "гілка": "main"}
     github.зберегти_налаштування(tmp_path, токен=" ghp_abcdef123 ")
-    github.зберегти_налаштування(tmp_path, репо="me/mova")
+    github.зберегти_налаштування(tmp_path, репо="me/vuzh")
     н = github.прочитати_налаштування(tmp_path)
-    assert н["токен"] == "ghp_abcdef123" and н["репо"] == "me/mova"
+    assert н["токен"] == "ghp_abcdef123" and н["репо"] == "me/vuzh"
     assert github.замаскувати(н["токен"]).startswith("ghp_") and "abcdef" not in github.замаскувати(н["токен"])
     assert (tmp_path / github.ФАЙЛ_НАЛАШТУВАНЬ).is_file()
+
+
+def test_стару_теку_з_програма_мова_теж_видно_у_списку(tmp_path):
+    """Застосунки, зроблені до перейменування мови на «Вуж», збираються далі."""
+    стара = tmp_path / "застосунки" / "Давній"
+    стара.mkdir(parents=True)
+    (стара / "програма.мова").write_text("друкуй(1)\n", encoding="utf-8")
+    з.створити_застосунок(tmp_path, "Новий", "друкуй(2)\n")
+    assert з.список_застосунків(tmp_path) == ["Давній", "Новий"]
+    workflow = (Path(з.__file__).resolve().parent / ".github" / "workflows" / "zastosunky.yml").read_text(encoding="utf-8")
+    assert '"програма.вуж"' in workflow and '"програма.мова"' in workflow

@@ -7,7 +7,7 @@
 [app]
 title = Проба GL
 package.name = probagl
-package.domain = org.mova
+package.domain = org.vuzh
 source.dir = .
 source.include_exts = py
 source.exclude_dirs = __pycache__,.buildozer,bin

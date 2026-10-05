@@ -204,7 +204,7 @@ pygments = pytest.importorskip("pygments")
 
 def _токени(код):
     from pygments import lex
-    return [(str(т), з) for т, з in lex(код, р.МоваLexer()) if з.strip()]
+    return [(str(т), з) for т, з in lex(код, р.ВужLexer()) if з.strip()]
 
 
 def test_лексер_класи_токенів():

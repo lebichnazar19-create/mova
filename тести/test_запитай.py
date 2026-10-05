@@ -98,7 +98,7 @@ def test_консоль_читає_зі_stdin(monkeypatch, capsys):
 
 def test_приклад_запитай(monkeypatch, capsys):
     зі_stdin(monkeypatch, "Оля\nдванадцять\n12\n3\n9\n7\n")
-    код = (КОРІНЬ / "приклади" / "запитай.мова").read_text(encoding="utf-8")
+    код = (КОРІНЬ / "приклади" / "запитай.вуж").read_text(encoding="utf-8")
     виконати_байткод(компілювати(парсити_текст(код)), без_пристрою=True)
     вивід = capsys.readouterr().out
     assert "Привіт, Оля!" in вивід

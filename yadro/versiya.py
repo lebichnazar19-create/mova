@@ -1,8 +1,8 @@
-"""Єдине джерело версії застосунку «Мова».
+"""Єдине джерело версії застосунку «Вуж».
 
 Звідси її беруть: main.py (напис у панелі, заголовок вікна, крах-екран),
 buildozer.spec (version.regex + version.filename — назва APK
-mova-<версія>-arm64-v8a-debug.apk; android.numeric_version — крок workflow
+vuzh-<версія>-arm64-v8a-debug.apk; android.numeric_version — крок workflow
 підставляє ЧИСЛОВА_ВЕРСІЯ, тест стежить, щоб літерал у spec збігався),
 zastosunky.py (версія згенерованих застосунків), dovidka.py (перший рядок
 «Довідки»). Міняти версію — лише тут.

@@ -1,9 +1,9 @@
 [app]
 title = кабель
 package.name = kabel
-package.domain = org.mova
+package.domain = org.vuzh
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,мова
+source.include_exts = py,png,jpg,kv,atlas,вуж
 source.exclude_dirs = __pycache__,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт
 version = 1.4

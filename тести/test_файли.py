@@ -88,13 +88,13 @@ def test_ім_я_файлу_має_бути_рядком(tmp_path, capsys):
 
 
 def test_cli_рахує_шлях_від_теки_програми(tmp_path, monkeypatch, capsys):
-    import мова as мова_cli
+    import вуж as вуж_cli
 
-    (tmp_path / "п.мова").write_text(
+    (tmp_path / "п.вуж").write_text(
         'запиши_файл("вихід.txt", "ок")\nдрукуй(прочитай_файл("вихід.txt"))\n', encoding="utf-8"
     )
     monkeypatch.chdir(tmp_path.parent)
-    мова_cli.команда_виконати(str(tmp_path / "п.мова"), без_пристрою=True)
+    вуж_cli.команда_виконати(str(tmp_path / "п.вуж"), без_пристрою=True)
     assert capsys.readouterr().out.strip() == "ок"
     assert (tmp_path / "вихід.txt").read_text(encoding="utf-8") == "ок"
 

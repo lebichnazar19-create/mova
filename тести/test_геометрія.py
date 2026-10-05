@@ -201,7 +201,7 @@ def test_власний_тип_точка_у_repl_фрагментах(capsys):
 def test_приклад_геометрія_виконується(capsys):
     from yadro import moduli
 
-    шлях = Path(__file__).resolve().parent.parent / "приклади" / "геометрія.мова"
+    шлях = Path(__file__).resolve().parent.parent / "приклади" / "геометрія.вуж"
     програма, _ = moduli.завантажити_програму(шлях)
     виконати_байткод(компілювати(програма), без_пристрою=True, тека_файлів=str(шлях.parent))
     вивід = capsys.readouterr().out

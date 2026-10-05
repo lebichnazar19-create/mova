@@ -282,9 +282,9 @@ def test_workflow_проби_збирає_gl_kub_в_артефакт():
 # ---- лог у файл ------------------------------------------------------------------
 
 def test_відкрити_лог_пише_в_усі_доступні_і_пропускає_недоступні(tmp_path, capsys):
-    а, б = tmp_path / "а" / "mova_gl.log", tmp_path / "mova_gl.log"
+    а, б = tmp_path / "а" / "vuzh_gl.log", tmp_path / "vuzh_gl.log"
     а.parent.mkdir()
-    немає = tmp_path / "немає_такої_теки" / "mova_gl.log"
+    немає = tmp_path / "немає_такої_теки" / "vuzh_gl.log"
     assert g.відкрити_лог([str(а), str(немає), str(б)]) == [str(а), str(б)]
     g.лог("крок 1")
     for ф in (а, б):
@@ -297,7 +297,7 @@ def test_відкрити_лог_пише_в_усі_доступні_і_проп
 
 
 def test_записати_помилку_кладе_повний_traceback(tmp_path):
-    ф = tmp_path / "mova_gl.log"
+    ф = tmp_path / "vuzh_gl.log"
     g.відкрити_лог([str(ф)])
     try:
         raise RuntimeError("шейдер не зібрався")
@@ -312,13 +312,13 @@ def test_записати_помилку_кладе_повний_traceback(tmp_p
 def test_кандидати_логу_на_компютері_і_на_android(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ANDROID_ARGUMENT", raising=False)
-    assert g.кандидати_логу() == [str(tmp_path / "mova_gl.log")]
-    monkeypatch.setenv("ANDROID_ARGUMENT", "/data/data/org.mova.probagl/files/app")
+    assert g.кандидати_логу() == [str(tmp_path / "vuzh_gl.log")]
+    monkeypatch.setenv("ANDROID_ARGUMENT", "/data/data/org.vuzh.probagl/files/app")
     monkeypatch.setenv("EXTERNAL_STORAGE", "/storage/emulated/0")
     к = g.кандидати_логу()   # без jnius на комп'ютері — без Android/data, але без падіння
-    assert к[:3] == ["/storage/emulated/0/mova_gl.log", "/storage/emulated/0/Download/mova_gl.log",
-                     "/storage/emulated/0/Documents/mova_gl.log"]
-    assert к[-1] == str(tmp_path / "mova_gl.log")
+    assert к[:3] == ["/storage/emulated/0/vuzh_gl.log", "/storage/emulated/0/Download/vuzh_gl.log",
+                     "/storage/emulated/0/Documents/vuzh_gl.log"]
+    assert к[-1] == str(tmp_path / "vuzh_gl.log")
 
 
 def test_запуск_логує_кожен_крок_і_ловить_падіння():

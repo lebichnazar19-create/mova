@@ -80,9 +80,9 @@ def test_підключи_лише_на_верхньому_рівні():
 
 def test_файлова_форма_з_назвою_бібліотеки_підказує_дужки(tmp_path):
     from yadro.moduli import завантажити_програму
-    (tmp_path / "п.мова").write_text('підключи "геометрія"\n', encoding="utf-8")
+    (tmp_path / "п.вуж").write_text('підключи "геометрія"\n', encoding="utf-8")
     with pytest.raises(ПомилкаПідключення) as info:
-        завантажити_програму(tmp_path / "п.мова")
+        завантажити_програму(tmp_path / "п.вуж")
     assert 'підключи("геометрія")' in str(info.value)
 
 
@@ -116,7 +116,7 @@ def test_реєстр_довідка_і_підсвітка():
     assert 'підключи("геометрія")' in dovidka.приклад("підключи")
     import redaktor
     if getattr(redaktor, "RegexLexer", None) is not None:
-        токени = list(redaktor.МоваLexer().get_tokens('підключи("геометрія")\nхай т = Точка(1, 2)\n'))
+        токени = list(redaktor.ВужLexer().get_tokens('підключи("геометрія")\nхай т = Точка(1, 2)\n'))
         assert any(т == "Точка" and str(тип) == "Token.Name.Builtin" for тип, т in токени)
 
 

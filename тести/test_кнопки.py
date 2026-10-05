@@ -123,7 +123,7 @@ def test_zapusk_помилка_в_дії_кнопки_завершує_прог�
 def test_приклад_кнопки_виконується(capsys):
     from yadro import moduli
 
-    шлях = Path(__file__).resolve().parent.parent / "приклади" / "кнопки.мова"
+    шлях = Path(__file__).resolve().parent.parent / "приклади" / "кнопки.вуж"
     програма, _ = moduli.завантажити_програму(шлях)
     виконати_байткод(компілювати(програма), без_пристрою=True)
     вивід = capsys.readouterr().out

@@ -1,8 +1,8 @@
-"""«Зробити застосунок»: програма мовою «Мова» стає окремим Android-застосунком.
+"""«Зробити застосунок»: програма мовою «Вуж» стає окремим Android-застосунком.
 
 створити_застосунок(корінь, назва, код) кладе в теку корінь/застосунки/назва/:
-    програма.мова   — сама програма;
-    main.py         — запускач без редактора (виконує програма.мова, показує
+    програма.вуж   — сама програма;
+    main.py         — запускач без редактора (виконує програма.вуж, показує
                       вивід, поле для «питай», кнопки програми, полотно креслення
                       й бібліотеки «екран»);
     buildozer.spec  — назва, латинське ім'я пакета, іконка, ті самі
@@ -13,7 +13,7 @@
 репозиторії ядро лишається в одному місці.
 
 Без Kivy; тестується на комп'ютері (тести/test_застосунки.py). Запуск з
-командного рядка: python3 zastosunky.py Назва програма.мова [корінь_репо]
+командного рядка: python3 zastosunky.py Назва програма.вуж [корінь_репо]
 """
 
 import re
@@ -25,7 +25,9 @@ from pathlib import Path
 from yadro.versiya import ВЕРСІЯ, числова_версія
 
 ТЕКА = "застосунки"
-ФАЙЛ_ПРОГРАМИ = "програма.мова"
+ФАЙЛ_ПРОГРАМИ = "програма.вуж"
+# застосунки, зроблені до перейменування мови на «Вуж», — теж збираються
+СТАРИЙ_ФАЙЛ_ПРОГРАМИ = "програма.мова"
 ФАЙЛИ_ЯДРА = ("yadro", "biblioteky", "zapusk.py", "vidzhety.py", "polotno.py", "vyvid.py")  # докладає workflow при збірці
 
 _ЗАБОРОНЕНО_В_НАЗВІ = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -63,7 +65,7 @@ def слаг(назва):
             літери.append("_")
     с = re.sub(r"_+", "_", "".join(літери)).strip("_")
     if not с or not с[0].isalpha():
-        с = "mova_" + (с or "app")
+        с = "vuzh_" + (с or "app")
     return с[:40]
 
 
@@ -120,9 +122,9 @@ def іконка_png(назва, розмір=192):
 СПЕЦИФІКАЦІЯ = """[app]
 title = {назва}
 package.name = {слаг}
-package.domain = org.mova
+package.domain = org.vuzh
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,мова
+source.include_exts = py,png,jpg,kv,atlas,вуж
 source.exclude_dirs = __pycache__,.buildozer,bin
 source.exclude_patterns = *.pyc,*.байт
 version = {версія}
@@ -144,7 +146,7 @@ log_level = 2
 """
 
 ЗАПУСКАЧ = '''#!/usr/bin/env python3
-"""Запускач застосунку «{назва}»: виконує програма.мова (мова «Мова») без
+"""Запускач застосунку «{назва}»: виконує програма.вуж (мова «Вуж») без
 редактора. Згенеровано zastosunky.py; ядро (yadro/, biblioteky/, zapusk.py, vidzhety.py, polotno.py, vyvid.py)
 докладає workflow під час збірки APK."""
 
@@ -158,7 +160,7 @@ if str(сюди) not in sys.path:
     sys.path.insert(0, str(сюди))
 
 НАЗВА = {назва!r}
-ФАЙЛ_ПРОГРАМИ = "програма.мова"
+ФАЙЛ_ПРОГРАМИ = "програма.вуж"
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -415,7 +417,7 @@ def список_застосунків(корінь):
     тека = Path(корінь) / ТЕКА
     if not тека.is_dir():
         return []
-    return sorted(п.name for п in тека.iterdir() if п.is_dir() and (п / ФАЙЛ_ПРОГРАМИ).is_file())
+    return sorted(п.name for п in тека.iterdir() if п.is_dir() and ((п / ФАЙЛ_ПРОГРАМИ).is_file() or (п / СТАРИЙ_ФАЙЛ_ПРОГРАМИ).is_file()))
 
 
 def шляхи_для_публікації(назва, файли):
@@ -426,7 +428,7 @@ def шляхи_для_публікації(назва, файли):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Використання: python3 zastosunky.py Назва програма.мова [корінь_репо]")
+        print("Використання: python3 zastosunky.py Назва програма.вуж [корінь_репо]")
         sys.exit(2)
     _назва, _файл = sys.argv[1], sys.argv[2]
     _корінь = sys.argv[3] if len(sys.argv) > 3 else str(Path(__file__).resolve().parent)

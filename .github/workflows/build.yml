@@ -125,12 +125,12 @@ jobs:
       - name: Зібрати APK (buildozer android debug)
         run: buildozer -v android debug
 
-      # Назва артефакта «мова-APK-<версія>»; зібрані програми — «програми-APK-…»
-      # (zastosunky.yml). Файл усередині — mova-<версія>-arm64-v8a-debug.apk.
+      # Назва артефакта «вуж-APK-<версія>»; зібрані програми — «програми-APK-…»
+      # (zastosunky.yml). Файл усередині — vuzh-<версія>-arm64-v8a-debug.apk.
       - name: Завантажити APK в Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: мова-APK-${{ env.VERSIYA }}
+          name: вуж-APK-${{ env.VERSIYA }}
           path: bin/*.apk
           if-no-files-found: error
 
@@ -138,9 +138,9 @@ jobs:
       # yadro/versiya.py. Поки версія та сама, кожна нова збірка оновлює
       # той самий реліз: тег пересувається на свіжий коміт, APK
       # замінюється (--clobber). Нова версія — новий тег і новий реліз.
-      # У релізі два файли з однаковим вмістом: mova-<версія>-…apk і
-      # mova.apk — друга назва стала, тож посилання
-      # releases/latest/download/mova.apk завжди веде на найновіший APK.
+      # У релізі два файли з однаковим вмістом: vuzh-<версія>-…apk і
+      # vuzh.apk — друга назва стала, тож посилання
+      # releases/latest/download/vuzh.apk завжди веде на найновіший APK.
       - name: Реліз — тег v<версія> і APK у GitHub Releases
         if: github.ref == 'refs/heads/main'
         env:
@@ -149,21 +149,21 @@ jobs:
           set -e
           TAG="v${VERSIYA}"
           APK=$(ls bin/*.apk | head -n1)
-          cp "$APK" mova.apk
+          cp "$APK" vuzh.apk
           cat > notes.md <<EOF
-          Редактор «Мова» ${VERSIYA} для Android (arm64-v8a, debug).
+          Редактор «Вуж» ${VERSIYA} для Android (arm64-v8a, debug).
 
           Збірка з коміту ${GITHUB_SHA::7} ($(date -u '+%Y-%m-%d %H:%M UTC')).
-          Завантаж \`mova.apk\` (або \`$(basename "$APK")\` — той самий файл) і встанови на телефон.
+          Завантаж \`vuzh.apk\` (або \`$(basename "$APK")\` — той самий файл) і встанови на телефон.
           EOF
           if gh release view "$TAG" >/dev/null 2>&1; then
             git tag -f "$TAG" "$GITHUB_SHA"
             git push -f origin "refs/tags/$TAG"
-            gh release upload "$TAG" "$APK" mova.apk --clobber
-            gh release edit "$TAG" --title "Мова ${VERSIYA}" --notes-file notes.md --latest
+            gh release upload "$TAG" "$APK" vuzh.apk --clobber
+            gh release edit "$TAG" --title "Вуж ${VERSIYA}" --notes-file notes.md --latest
           else
-            gh release create "$TAG" "$APK" mova.apk --target "$GITHUB_SHA" \
-              --title "Мова ${VERSIYA}" --notes-file notes.md --latest
+            gh release create "$TAG" "$APK" vuzh.apk --target "$GITHUB_SHA" \
+              --title "Вуж ${VERSIYA}" --notes-file notes.md --latest
           fi
           gh release view "$TAG" --json url,assets --jq '.url, (.assets[] | .name + " " + (.size|tostring))'
 

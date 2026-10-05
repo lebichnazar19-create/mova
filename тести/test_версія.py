@@ -24,14 +24,14 @@ def test_buildozer_бере_версію_з_versiya_тим_самим_регул
     assert файл == "yadro/versiya.py"
     вміст = (КОРІНЬ / файл).read_text(encoding="utf-8")
     assert re.search(регекс, вміст).group(1) == ВЕРСІЯ
-    assert "title = Мова" in spec and "${" not in spec
+    assert "title = Вуж" in spec and "${" not in spec
 
 
 def test_main_і_zastosunky_не_зашивають_версію():
     main = (КОРІНЬ / "main.py").read_text(encoding="utf-8")
     assert "from yadro.versiya import ВЕРСІЯ" in main
     assert not re.search(r'^ВЕРСІЯ = "\d', main, re.M)
-    assert "${" not in main and 'title = "Мова"' in main and 'text=f"Мова {ВЕРСІЯ}"' in main
+    assert "${" not in main and 'title = "Вуж"' in main and 'text=f"Вуж {ВЕРСІЯ}"' in main
     import zastosunky
     assert "version = " + ВЕРСІЯ in zastosunky.файли_застосунку("Тест", "друкуй(1)\n")["buildozer.spec"]
 
@@ -59,7 +59,7 @@ def test_workflow_пише_збірку_і_числову_версію():
 def test_рядок_версії_у_довідці():
     from yadro import dovidka, zbirka
     рядок = dovidka.рядок_версії()
-    assert рядок.startswith(f"Мова {ВЕРСІЯ} — збірка ") and "коміт" in рядок
+    assert рядок.startswith(f"Вуж {ВЕРСІЯ} — збірка ") and "коміт" in рядок
     assert zbirka.ДАТА == "локальна" and zbirka.КОМІТ == "—"   # у репозиторії — типові значення
     assert dovidka.текст_довідки().split("\n")[0] == рядок
 
@@ -74,7 +74,7 @@ def test_числова_версія_вище_за_будь_який_стари�
 
 def test_workflow_робить_реліз_з_apk_лише_на_main():
     """build.yml: після успішної збірки на main — GitHub Release з тегом
-    v<версія> і APK (також під сталою назвою mova.apk для прямого
+    v<версія> і APK (також під сталою назвою vuzh.apk для прямого
     посилання з README)."""
     текст = (КОРІНЬ / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
     assert "contents: write" in текст
@@ -85,4 +85,4 @@ def test_workflow_робить_реліз_з_apk_лише_на_main():
     assert текст.index("buildozer -v android debug\n") < текст.index("upload-artifact") < текст.index("gh release create")
     readme = (КОРІНЬ / "README.md").read_text(encoding="utf-8")
     assert "/releases/latest)" in readme
-    assert "/releases/latest/download/mova.apk" in readme
+    assert "/releases/latest/download/vuzh.apk" in readme

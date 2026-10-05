@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Книжка з документації «Мови» — один PDF з ПІДРУЧНИК.md і ДОВІДНИК.md.
+"""Книжка з документації «Вужа» — один PDF з ПІДРУЧНИК.md і ДОВІДНИК.md.
 
     python3 tools/knyzhka.py            # -> КНИЖКА.pdf у корені репозиторію
     python3 tools/knyzhka.py вихід.pdf
@@ -285,7 +285,7 @@ def _титул(pdf, версія):
     pdf.без_номера.add(pdf.page)
     pdf.ln(70)
     pdf.set_font("DejaVu", "B", 40)
-    pdf.cell(0, 20, "Мова", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 20, "Вуж", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("DejaVu", "", 16)
     pdf.cell(0, 12, "Підручник і довідник", align="C", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(6)
@@ -353,8 +353,8 @@ def зібрати(вихід=ВИХІД, джерела=ДЖЕРЕЛА, вер�
         # _рендер повертає абсолютні сторінки pdf; у другому проході перед
         # тілом уже стоять титул і зміст, тож віднімаємо зсув.
         assert [з[2] - зсув for з in записи_тіла] == [з[2] for з in записи], "сторінки розділів зсунулись"
-        pdf.set_title(f"Мова {версія} — підручник і довідник")
-        pdf.set_author("Мова")
+        pdf.set_title(f"Вуж {версія} — підручник і довідник")
+        pdf.set_author("Вуж")
         pdf.output(str(вихід))
         return [(р, н, с + зсув) for р, н, с in записи]
     raise SystemExit("Не вдалося стабілізувати кількість сторінок змісту.")
